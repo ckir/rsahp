@@ -8,32 +8,37 @@ pub struct Model {
     pub id: i32,
     pub username: String,
     pub password_hash: String,
-    pub group_id: Option<i32>,
     pub is_admin: bool,
+    pub is_deleted: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::user_group::Entity",
-        from = "Column::GroupId",
-        to = "super::user_group::Column::Id"
-    )]
-    UserGroup,
-    #[sea_orm(has_many = "super::document::Entity")]
-    Document,
+    #[sea_orm(has_many = "super::user_group_membership::Entity")]
+    UserGroupMembership,
+    #[sea_orm(has_many = "super::document_user_assignment::Entity")]
+    DocumentAssignment,
+    #[sea_orm(has_many = "super::comparison::Entity")]
+    Comparison,
 }
 
-impl Related<super::user_group::Entity> for Entity {
+impl Related<super::user_group_membership::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::UserGroup.def()
+        Relation::UserGroupMembership.def()
     }
 }
 
-impl Related<super::document::Entity> for Entity {
+impl Related<super::document_user_assignment::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Document.def()
+        Relation::DocumentAssignment.def()
     }
 }
+
+impl Related<super::comparison::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Comparison.def()
+    }
+}
+
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -20,6 +20,7 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                 if let Some(path) = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file() {
                     if let Ok(json_text) = std::fs::read_to_string(&path) {
                         let mut request = ehttp::Request::post(&format!("{}/import", api_url), json_text.into_bytes());
+                        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
                         request.headers.insert("Content-Type", "application/json");
                         let ctx_clone = ctx.clone();
                         state.import_status = Some("Importing...".to_string());

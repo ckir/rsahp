@@ -10,7 +10,10 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{comparison, document, folder, node};
+use crate::entity::{
+    comparison, document, folder, node, document_user_assignment, document_group_assignment, user_group_membership,
+};
+use crate::api_auth::Claims;
 
 pub fn router() -> Router<DatabaseConnection> {
     Router::new()
@@ -25,6 +28,10 @@ pub fn router() -> Router<DatabaseConnection> {
         .route("/{id}/full", post(save_full_document))
         .route("/{id}/duplicate", post(duplicate_document))
         .route("/{id}/move", post(move_document))
+        .route(
+            "/{id}/assignments",
+            get(get_document_assignments).post(set_document_assignments),
+        )
         .route("/{id}/nodes", get(list_nodes).post(create_node))
         .route(
             "/{id}/nodes/{node_id}",
@@ -51,17 +58,16 @@ pub struct DocumentDto {
 
 // 1. List Documents
 pub async fn list_documents(
+    claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<document::Model>>, (StatusCode, String)> {
-    let docs = document::Entity::find()
-        .all(&db)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let docs = fetch_allowed_documents(&db, claims.sub).await?;
     Ok(Json(docs))
 }
 
 // 2. Create Document
 pub async fn create_document(
+    claims: Claims,
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
@@ -135,6 +141,80 @@ async fn delete_document(
         return Err((StatusCode::NOT_FOUND, "Document not found".to_string()));
     }
     Ok("Deleted".to_string())
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DocumentAssignmentsDto {
+    pub user_ids: Vec<i32>,
+    pub group_ids: Vec<i32>,
+}
+
+pub async fn get_document_assignments(
+    _claims: Claims,
+    State(db): State<DatabaseConnection>,
+    Path(id): Path<i32>,
+) -> Result<Json<DocumentAssignmentsDto>, (StatusCode, String)> {
+    let users = document_user_assignment::Entity::find()
+        .filter(document_user_assignment::Column::DocumentId.eq(id))
+        .all(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    let groups = document_group_assignment::Entity::find()
+        .filter(document_group_assignment::Column::DocumentId.eq(id))
+        .all(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(DocumentAssignmentsDto {
+        user_ids: users.into_iter().map(|u| u.user_id).collect(),
+        group_ids: groups.into_iter().map(|g| g.group_id).collect(),
+    }))
+}
+
+pub async fn set_document_assignments(
+    _claims: Claims,
+    State(db): State<DatabaseConnection>,
+    Path(id): Path<i32>,
+    Json(payload): Json<DocumentAssignmentsDto>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let _ = document_user_assignment::Entity::delete_many()
+        .filter(document_user_assignment::Column::DocumentId.eq(id))
+        .exec(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let _ = document_group_assignment::Entity::delete_many()
+        .filter(document_group_assignment::Column::DocumentId.eq(id))
+        .exec(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    for uid in payload.user_ids {
+        let membership = document_user_assignment::ActiveModel {
+            document_id: Set(id),
+            user_id: Set(uid),
+            ..Default::default()
+        };
+        membership
+            .insert(&db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+
+    for gid in payload.group_ids {
+        let membership = document_group_assignment::ActiveModel {
+            document_id: Set(id),
+            group_id: Set(gid),
+            ..Default::default()
+        };
+        membership
+            .insert(&db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+
+    Ok(StatusCode::OK)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -217,7 +297,7 @@ async fn delete_node(
 
 #[derive(Serialize, Deserialize)]
 pub struct ComparisonDto {
-    pub respondent_email: String,
+    pub respondent_id: i32,
     pub parent_node_id: i32,
     pub node_a_id: i32,
     pub node_b_id: i32,
@@ -243,7 +323,7 @@ async fn create_comparison(
 ) -> Result<Json<comparison::Model>, (StatusCode, String)> {
     let new_comp = comparison::ActiveModel {
         document_id: Set(id),
-        respondent_email: Set(payload.respondent_email),
+        respondent_id: Set(payload.respondent_id),
         parent_node_id: Set(payload.parent_node_id),
         node_a_id: Set(payload.node_a_id),
         node_b_id: Set(payload.node_b_id),
@@ -630,7 +710,7 @@ pub async fn duplicate_document(
 
         let new_comp = comparison::ActiveModel {
             document_id: Set(new_doc_id),
-            respondent_email: Set(c.respondent_email.clone()),
+            respondent_id: Set(c.respondent_id),
             parent_node_id: Set(new_parent_id),
             node_a_id: Set(new_node_a),
             node_b_id: Set(new_node_b),
@@ -760,15 +840,66 @@ pub struct TreeDto {
 }
 
 pub async fn get_tree(
+    claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<TreeDto>, (StatusCode, String)> {
     let folders = folder::Entity::find()
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let documents = document::Entity::find()
-        .all(&db)
+    let documents = fetch_allowed_documents(&db, claims.sub).await?;
+    Ok(Json(TreeDto { folders, documents }))
+}
+
+async fn fetch_allowed_documents(db: &DatabaseConnection, user_id: i32) -> Result<Vec<document::Model>, (StatusCode, String)> {
+    use sea_orm::{Condition, QuerySelect};
+
+    let owned_docs = document::Entity::find()
+        .filter(document::Column::OwnerId.eq(user_id))
+        .all(db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(TreeDto { folders, documents }))
+
+    let user_assignments = document_user_assignment::Entity::find()
+        .filter(document_user_assignment::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let memberships = user_group_membership::Entity::find()
+        .filter(user_group_membership::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let group_ids: Vec<i32> = memberships.into_iter().map(|m| m.group_id).collect();
+    
+    let group_assignments = if !group_ids.is_empty() {
+        document_group_assignment::Entity::find()
+            .filter(document_group_assignment::Column::GroupId.is_in(group_ids))
+            .all(db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    } else {
+        vec![]
+    };
+
+    let mut doc_ids: Vec<i32> = owned_docs.iter().map(|d| d.id).collect();
+    doc_ids.extend(user_assignments.into_iter().map(|a| a.document_id));
+    doc_ids.extend(group_assignments.into_iter().map(|a| a.document_id));
+    
+    doc_ids.sort();
+    doc_ids.dedup();
+
+    if doc_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let docs = document::Entity::find()
+        .filter(document::Column::Id.is_in(doc_ids))
+        .all(db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(docs)
 }

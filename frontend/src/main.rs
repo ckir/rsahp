@@ -12,8 +12,8 @@ fn main() -> Result<(), eframe::Error> {
 
     tracing_subscriber::registry()
         .with(EnvFilter::new("info"))
-        .with(fmt::layer().with_writer(std::io::stdout))
-        .with(fmt::layer().with_writer(non_blocking))
+        .with(fmt::layer().json().with_writer(std::io::stdout))
+        .with(fmt::layer().json().with_writer(non_blocking))
         .init();
 
     let config = config::AppConfig::load();

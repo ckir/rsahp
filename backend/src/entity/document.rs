@@ -30,6 +30,10 @@ pub enum Relation {
     Folder,
     #[sea_orm(has_many = "super::node::Entity")]
     Node,
+    #[sea_orm(has_many = "super::document_user_assignment::Entity")]
+    UserAssignment,
+    #[sea_orm(has_many = "super::document_group_assignment::Entity")]
+    GroupAssignment,
 }
 
 impl Related<super::user::Entity> for Entity {
@@ -47,6 +51,18 @@ impl Related<super::folder::Entity> for Entity {
 impl Related<super::node::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Node.def()
+    }
+}
+
+impl Related<super::document_user_assignment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserAssignment.def()
+    }
+}
+
+impl Related<super::document_group_assignment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::GroupAssignment.def()
     }
 }
 

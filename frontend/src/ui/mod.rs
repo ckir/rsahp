@@ -1,13 +1,19 @@
 use eframe::egui;
 
+mod auth;
+mod admin;
 mod document_window;
 mod explorer;
 mod taskbar;
+mod user_dashboard;
 
 pub struct RsahpApp {
     show_task_list: bool,
     open_documents: Vec<document_window::DocumentState>,
     explorer_state: explorer::ExplorerState,
+    auth_state: auth::AuthState,
+    admin_state: admin::AdminState,
+    user_dashboard_state: user_dashboard::UserDashboardState,
     config: crate::config::AppConfig,
 }
 
@@ -17,6 +23,9 @@ impl RsahpApp {
             show_task_list: false,
             open_documents: Vec::new(),
             explorer_state: Default::default(),
+            auth_state: Default::default(),
+            admin_state: Default::default(),
+            user_dashboard_state: Default::default(),
             config,
         }
     }
@@ -42,16 +51,39 @@ impl RsahpApp {
             .clone()
             .unwrap_or_else(|| "http://127.0.0.1:4002/api/documents".to_string());
 
-        // Render Bottom Taskbar
-        taskbar::render(ctx, &mut self.show_task_list, &mut self.config);
+        // Render Auth Modal
+        auth::render_login_modal(ctx, &mut self.auth_state, &api_url);
 
-        // Render Pinned Explorer
-        explorer::render(
+        if self.auth_state.jwt_token.is_none() {
+            // Do not render the rest of the app if not logged in
+            return;
+        }
+
+        // Render Bottom Taskbar
+        taskbar::render(
             ctx,
+            &mut self.show_task_list,
             &mut self.explorer_state,
-            &mut self.open_documents,
-            &api_url,
+            &mut self.auth_state,
+            &mut self.admin_state,
+            &mut self.config,
         );
+
+        if self.auth_state.is_admin {
+            // Admin only sees the admin window
+            self.admin_state.is_open = true;
+            admin::render(ctx, &mut self.admin_state, self.config.api_url.as_deref().unwrap_or("http://localhost:8000/api"), self.auth_state.jwt_token.as_deref());
+        } else {
+            // Render User Dashboard
+            user_dashboard::render(
+                ctx,
+                &mut self.user_dashboard_state,
+                &mut self.open_documents,
+                &api_url,
+                self.auth_state.jwt_token.as_deref(),
+                self.auth_state.logged_in_user_id,
+            );
+        }
 
         // Render Open Document Windows
         let mut closed_docs = Vec::new();
@@ -66,7 +98,7 @@ impl RsahpApp {
                     .default_pos(ctx.screen_rect().center())
                     .pivot(egui::Align2::CENTER_CENTER)
                     .show(ctx, |ui| {
-                        document_window::render(ui, doc, &api_url);
+                        document_window::render(ui, doc, &api_url, self.auth_state.jwt_token.as_deref());
                     });
 
                 if !is_open {
@@ -123,7 +155,7 @@ impl RsahpApp {
                 }
                 match action {
                     Some("save") => {
-                        document_window::save_document(doc, &api_url, ctx);
+                        document_window::save_document(doc, &api_url, ctx, self.auth_state.jwt_token.as_deref());
                         closed_docs.push(idx);
                     }
                     Some("discard") => {

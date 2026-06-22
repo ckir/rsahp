@@ -1,6 +1,9 @@
 pub mod comparison;
 pub mod document;
+pub mod document_group_assignment;
+pub mod document_user_assignment;
 pub mod folder;
 pub mod node;
 pub mod user;
 pub mod user_group;
+pub mod user_group_membership;

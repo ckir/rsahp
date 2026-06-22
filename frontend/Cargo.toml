@@ -17,7 +17,7 @@ serde_json = "1.0.150"
 tokio = { version = "1.52.3", features = ["rt", "macros"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 
 [dev-dependencies]
 egui_kittest = "0.34.3"

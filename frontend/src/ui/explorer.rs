@@ -236,6 +236,7 @@ pub fn render(
     state: &mut ExplorerState,
     open_documents: &mut Vec<DocumentState>,
     api_url: &str,
+    jwt_token: Option<&str>,
 ) {
     if !state.fetched_initial && state.tree_rx.is_none() {
         let (tx, rx) = std::sync::mpsc::channel();
@@ -248,7 +249,10 @@ pub fn render(
         }
         tree_url.push_str("/tree");
 
-        let request = ehttp::Request::get(tree_url);
+        let mut request = ehttp::Request::get(tree_url);
+        if let Some(token) = jwt_token {
+            request.headers.insert("Authorization", &format!("Bearer {}", token));
+        }
         let ctx_clone = ctx.clone();
         ehttp::fetch(request, move |result| {
             match result {
@@ -340,6 +344,10 @@ pub fn render(
             {
                 let mut request =
                     ehttp::Request::post(format!("{}/import", api_url), json_text.into_bytes());
+                if let Some(token) = jwt_token {
+                    request.headers.insert("Authorization", &format!("Bearer {}", token));
+                }
+                request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
                 request.headers.insert("Content-Type", "application/json");
                 let ctx_clone = ctx.clone();
                 state.import_status = Some("Importing...".to_string());
@@ -388,11 +396,14 @@ pub fn render(
                                             let move_url = format!("{}/{}/move", url, did);
                                             let payload =
                                                 format!(r#"{{"folder_id":{}}}"#, target_folder_id);
-                                            let req = ehttp::Request::post(
+                                            let mut request = ehttp::Request::post(
                                                 move_url,
                                                 payload.into_bytes(),
                                             );
-                                            ehttp::fetch(req, |_| {});
+                                            if let Some(token) = jwt_token {
+                                                request.headers.insert("Authorization", &format!("Bearer {}", token));
+                                            }
+                                            ehttp::fetch(request, |_| {});
                                         }
                                     } else if let Node::Directory(ref d) = source {
                                         let update_url = format!("{}/folders/{}", url, d.id);
@@ -400,8 +411,11 @@ pub fn render(
                                             r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#,
                                             d.name, target_folder_id
                                         );
-                                        let req =
+                                        let mut req =
                                             ehttp::Request::post(update_url, payload.into_bytes());
+                                        if let Some(token) = jwt_token {
+                                            req.headers.insert("Authorization", &format!("Bearer {}", token));
+                                        }
                                         ehttp::fetch(req, |_| {});
                                     }
 
@@ -569,7 +583,10 @@ pub fn render(
                         }
                         url.push_str("/folders");
 
-                        let request = ehttp::Request::post(url, payload.into_bytes());
+                        let mut request = ehttp::Request::post(url, payload.into_bytes());
+                        if let Some(token) = jwt_token {
+                            request.headers.insert("Authorization", &format!("Bearer {}", token));
+                        }
                         let ctx_clone = ctx.clone();
                         ehttp::fetch(request, move |_| {
                             ctx_clone.request_repaint();

@@ -19,8 +19,8 @@ async fn main() -> Result<(), DbErr> {
 
     tracing_subscriber::registry()
         .with(EnvFilter::new("info"))
-        .with(fmt::layer().with_writer(std::io::stdout))
-        .with(fmt::layer().with_writer(non_blocking))
+        .with(fmt::layer().json().with_writer(std::io::stdout))
+        .with(fmt::layer().json().with_writer(non_blocking))
         .init();
 
     tracing::info!("Starting AHP Backend Server...");

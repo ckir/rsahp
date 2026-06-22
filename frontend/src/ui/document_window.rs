@@ -105,10 +105,10 @@ impl CriteriaNode {
 
 #[derive(Clone)]
 pub enum CriteriaModalAction {
-    AddChild(usize, DirPosition, String),
-    ConfirmDelete(usize),
-    Rename(usize),
-    EditCost(usize),
+    ConfirmDelete(usize, String),
+    AddChild(usize, DirPosition, String), // parent_id, position, node_type to add
+    Rename(usize, String),
+    EditCost(usize, String),
 }
 
 pub struct CriteriaModalState {
@@ -139,6 +139,17 @@ pub struct DocumentState {
     pub duplicated_doc_rx: Option<std::sync::mpsc::Receiver<DocumentModel>>,
     pub sort_column: SortColumn,
     pub sort_descending: bool,
+    pub assignments: Option<DocumentAssignments>,
+    pub assignments_rx: Option<std::sync::mpsc::Receiver<Result<DocumentAssignments, String>>>,
+    pub assignments_save_rx: Option<std::sync::mpsc::Receiver<bool>>,
+    pub new_user_assignment_id: String,
+    pub new_group_assignment_id: String,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct DocumentAssignments {
+    pub user_ids: Vec<i32>,
+    pub group_ids: Vec<i32>,
 }
 
 #[derive(PartialEq)]
@@ -154,6 +165,7 @@ pub enum DocumentTab {
     Structure,
     Comparisons,
     Results,
+    Assignments,
 }
 
 impl DocumentState {
@@ -185,8 +197,13 @@ impl DocumentState {
             load_rx: None,
             save_rx: None,
             duplicated_doc_rx: None,
-            sort_column: SortColumn::Alignment,
+            sort_column: SortColumn::ValueScore,
             sort_descending: true,
+            assignments: None,
+            assignments_rx: None,
+            assignments_save_rx: None,
+            new_user_assignment_id: String::new(),
+            new_group_assignment_id: String::new(),
         }
     }
 }
@@ -237,7 +254,7 @@ pub struct DocumentDto {
     pub aggregation_method: String,
 }
 
-pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Context) {
+pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Context, jwt_token: Option<&str>) {
     let mut nodes = Vec::new();
 
     // Add goal node manually as the root
@@ -315,7 +332,12 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
 
     if let Ok(body) = serde_json::to_vec(&export) {
         let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
-        request.headers.headers.clear();
+        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+        request.headers.insert("Content-Type", "application/json");
+        if let Some(token) = jwt_token {
+            request.headers.insert("Authorization", &format!("Bearer {}", token));
+        }
+        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
         request.headers.insert("Content-Type", "application/json");
         let ctx_clone = ctx.clone();
         state.save_status = Some("Saving...".to_string());
@@ -349,12 +371,15 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
     }
 }
 
-pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
+pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_token: Option<&str>) {
     if !state.is_loaded && state.load_rx.is_none() {
         let (tx, rx) = std::sync::mpsc::channel();
         state.load_rx = Some(rx);
         let url = format!("{}/{}/export", api_url, state.id);
-        let request = ehttp::Request::get(&url);
+        let mut request = ehttp::Request::get(url);
+        if let Some(token) = jwt_token {
+            request.headers.insert("Authorization", &format!("Bearer {}", token));
+        }
         let ctx = ui.ctx().clone();
 
         ehttp::fetch(request, move |result| {
@@ -452,13 +477,16 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
     // Toolbar
     ui.horizontal(|ui| {
         if ui.button("💾 Save").clicked() {
-            save_document(state, api_url, ui.ctx());
+            save_document(state, api_url, ui.ctx(), jwt_token);
         }
         if ui.button("📄 Save as New Version").clicked() {
             // Save first to ensure the original is up to date, though technically optional.
             // But we can just trigger the duplicate endpoint directly.
             let url = format!("{}/{}/duplicate", api_url, state.id);
-            let request = ehttp::Request::post(&url, vec![]);
+            let mut request = ehttp::Request::post(url, vec![]);
+            if let Some(token) = jwt_token {
+                request.headers.insert("Authorization", &format!("Bearer {}", token));
+            }
             let ctx = ui.ctx().clone();
 
             let (tx, rx) = std::sync::mpsc::channel();
@@ -481,7 +509,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 .save_file()
         {
             let url = format!("{}/{}/export", api_url, state.id);
-            let request = ehttp::Request::get(&url);
+            let mut request = ehttp::Request::get(url);
+            if let Some(token) = jwt_token {
+                request.headers.insert("Authorization", &format!("Bearer {}", token));
+            }
             let ctx = ui.ctx().clone();
 
             ehttp::fetch(request, move |result| {
@@ -546,6 +577,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             "Comparisons",
         );
         ui.selectable_value(&mut state.active_tab, DocumentTab::Results, "Results");
+        ui.selectable_value(&mut state.active_tab, DocumentTab::Assignments, "Assignments");
     });
 
     ui.separator();
@@ -612,7 +644,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                     }
                 });
 
-                if response.header_response.clicked() {
+                if response.header_response.double_clicked() {
+                    actions.push(CriteriaModalAction::Rename(node.id, node.node_type.clone()));
+                } else if response.header_response.clicked() {
                     if is_open {
                         open_nodes.remove(&node.id);
                     } else {
@@ -626,13 +660,13 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                     ui.separator();
                     if node.id != 0 {
                         if ui.button("🗑 Delete").clicked() {
-                            actions.push(CriteriaModalAction::ConfirmDelete(node.id));
+                            actions.push(CriteriaModalAction::ConfirmDelete(node.id, node.node_type.clone()));
                             ui.close();
                         }
                         ui.separator();
                     }
                     if ui.button("✏ Rename").clicked() {
-                        actions.push(CriteriaModalAction::Rename(node.id));
+                        actions.push(CriteriaModalAction::Rename(node.id, node.node_type.clone()));
                         ui.close();
                     }
                     if ui.button("➕ Add Sub-criteria").clicked() {
@@ -669,15 +703,24 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         ui.horizontal(|ui| {
                             if ui.button("🗑️").clicked() {
                                 context_menu_actions
-                                    .push(CriteriaModalAction::ConfirmDelete(child.id));
+                                    .push(CriteriaModalAction::ConfirmDelete(child.id, child.node_type.clone()));
                             }
-                            ui.label(format!("• {}", child.name));
+                            let label_resp = ui.add(egui::Label::new(format!("• {}", child.name)).sense(egui::Sense::click()));
+                            if label_resp.double_clicked() {
+                                context_menu_actions.push(CriteriaModalAction::Rename(child.id, child.node_type.clone()));
+                            }
+                            label_resp.context_menu(|ui| {
+                                if ui.button("✏ Rename").clicked() {
+                                    context_menu_actions.push(CriteriaModalAction::Rename(child.id, child.node_type.clone()));
+                                    ui.close();
+                                }
+                            });
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui.button("✏️ Edit Cost").clicked() {
                                         context_menu_actions
-                                            .push(CriteriaModalAction::EditCost(child.id));
+                                            .push(CriteriaModalAction::EditCost(child.id, child.node_type.clone()));
                                     }
                                     if let Some(cost) = child.cost {
                                         ui.label(format!("Cost: ${}", cost));
@@ -691,9 +734,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
 
             for action in context_menu_actions {
                 match action {
-                    CriteriaModalAction::ConfirmDelete(id) => {
+                    CriteriaModalAction::ConfirmDelete(id, nt) => {
                         state.modal_state = Some(CriteriaModalState {
-                            action: CriteriaModalAction::ConfirmDelete(id),
+                            action: CriteriaModalAction::ConfirmDelete(id, nt),
                             input_name: String::new(),
                         });
                     }
@@ -707,25 +750,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             input_name: String::new(),
                         });
                     }
-                    CriteriaModalAction::Rename(id) => {
+                    CriteriaModalAction::Rename(id, nt) => {
                         let current_name = state
                             .criteria
                             .find(id)
                             .map(|n| n.name.clone())
                             .unwrap_or_default();
                         state.modal_state = Some(CriteriaModalState {
-                            action: CriteriaModalAction::Rename(id),
+                            action: CriteriaModalAction::Rename(id, nt),
                             input_name: current_name,
                         });
                     }
-                    CriteriaModalAction::EditCost(id) => {
+                    CriteriaModalAction::EditCost(id, nt) => {
                         let current_cost = state
                             .criteria
                             .find(id)
                             .and_then(|n| n.cost.map(|c| c.to_string()))
                             .unwrap_or_default();
                         state.modal_state = Some(CriteriaModalState {
-                            action: CriteriaModalAction::EditCost(id),
+                            action: CriteriaModalAction::EditCost(id, nt),
                             input_name: current_cost,
                         });
                     }
@@ -765,7 +808,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         }
 
                         match modal.action {
-                            CriteriaModalAction::ConfirmDelete(_) => {
+                            CriteriaModalAction::ConfirmDelete(..) => {
                                 ui.label("Are you sure you want to delete this criteria?");
                                 ui.horizontal(|ui| {
                                     if ui.button("Yes").clicked() {
@@ -778,7 +821,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             }
                             _ => {
                                 ui.horizontal(|ui| {
-                                    if let CriteriaModalAction::EditCost(_) = modal.action {
+                                    if let CriteriaModalAction::EditCost(..) = modal.action {
                                         ui.label("Cost:");
                                     } else {
                                         ui.label("Name:");
@@ -800,7 +843,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
 
                 if submitted {
                     match modal.action.clone() {
-                        CriteriaModalAction::ConfirmDelete(id) => {
+                        CriteriaModalAction::ConfirmDelete(id, _) => {
                             state.criteria.remove(id);
                             state.is_modified = true;
                             state.modal_state = None;
@@ -826,7 +869,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                                 submitted = false; // keep open
                             }
                         }
-                        CriteriaModalAction::Rename(id) => {
+                        CriteriaModalAction::Rename(id, _) => {
                             if !modal.input_name.trim().is_empty() {
                                 let name = modal.input_name.trim().to_string();
                                 state.criteria.rename(id, name);
@@ -836,7 +879,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                                 submitted = false; // keep open
                             }
                         }
-                        CriteriaModalAction::EditCost(id) => {
+                        CriteriaModalAction::EditCost(id, _) => {
                             let input = modal.input_name.trim();
                             if input.is_empty() {
                                 state.criteria.set_cost(id, None);
@@ -1104,6 +1147,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             }
         }
         DocumentTab::Results => {
+            // ... (keep this unchanged but add Assignments below it, I will use line numbers carefully)
             ui.heading("Results & Alignment");
             ui.label("Detailed breakdown of how each Candidate scores across your Criteria.");
 
@@ -1284,6 +1328,145 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             }
                         });
                     });
+            }
+        }
+        DocumentTab::Assignments => {
+            ui.heading("Document Assignments");
+            ui.label("Manage users and groups assigned to evaluate this document.");
+
+            if state.assignments.is_none() && state.assignments_rx.is_none() {
+                let (tx, rx) = std::sync::mpsc::channel();
+                state.assignments_rx = Some(rx);
+                let url = format!("{}/{}/assignments", api_url, state.id);
+                let mut request = ehttp::Request::get(url);
+                if let Some(token) = jwt_token {
+                    request.headers.insert("Authorization", &format!("Bearer {}", token));
+                }
+                let ctx_clone = ui.ctx().clone();
+                ehttp::fetch(request, move |result| {
+                    let res = match result {
+                        Ok(response) => {
+                            if response.status == 200 {
+                                if let Some(text) = response.text() {
+                                    serde_json::from_str::<DocumentAssignments>(text)
+                                        .map_err(|e| format!("Parse error: {}", e))
+                                } else {
+                                    Err("No body".to_string())
+                                }
+                            } else {
+                                Err(format!("Error: {}", response.status))
+                            }
+                        }
+                        Err(e) => Err(e),
+                    };
+                    let _ = tx.send(res);
+                    ctx_clone.request_repaint();
+                });
+            }
+
+            if let Some(rx) = &state.assignments_rx {
+                if let Ok(res) = rx.try_recv() {
+                    state.assignments_rx = None;
+                    if let Ok(assignments) = res {
+                        state.assignments = Some(assignments);
+                    }
+                } else {
+                    ui.spinner();
+                    ui.label("Loading assignments...");
+                }
+            }
+
+            if let Some(assignments) = &mut state.assignments {
+                ui.separator();
+                ui.heading("Users");
+                
+                let mut remove_user = None;
+                for uid in &assignments.user_ids {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("User ID: {}", uid));
+                        if ui.button("Remove").clicked() {
+                            remove_user = Some(*uid);
+                        }
+                    });
+                }
+                if let Some(u) = remove_user {
+                    assignments.user_ids.retain(|x| *x != u);
+                }
+
+                ui.horizontal(|ui| {
+                    ui.text_edit_singleline(&mut state.new_user_assignment_id);
+                    if ui.button("Add User ID").clicked() {
+                        if let Ok(id) = state.new_user_assignment_id.parse::<i32>() {
+                            if !assignments.user_ids.contains(&id) {
+                                assignments.user_ids.push(id);
+                            }
+                            state.new_user_assignment_id.clear();
+                        }
+                    }
+                });
+
+                ui.separator();
+                ui.heading("Groups");
+
+                let mut remove_group = None;
+                for gid in &assignments.group_ids {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("Group ID: {}", gid));
+                        if ui.button("Remove").clicked() {
+                            remove_group = Some(*gid);
+                        }
+                    });
+                }
+                if let Some(g) = remove_group {
+                    assignments.group_ids.retain(|x| *x != g);
+                }
+
+                ui.horizontal(|ui| {
+                    ui.text_edit_singleline(&mut state.new_group_assignment_id);
+                    if ui.button("Add Group ID").clicked() {
+                        if let Ok(id) = state.new_group_assignment_id.parse::<i32>() {
+                            if !assignments.group_ids.contains(&id) {
+                                assignments.group_ids.push(id);
+                            }
+                            state.new_group_assignment_id.clear();
+                        }
+                    }
+                });
+
+                ui.separator();
+                if ui.button("Save Assignments").clicked() && state.assignments_save_rx.is_none() {
+                    let url = format!("{}/{}/assignments", api_url, state.id);
+                    if let Ok(body) = serde_json::to_vec(assignments) {
+                        let mut request = ehttp::Request::post(url, body);
+                        if let Some(token) = jwt_token {
+                            request.headers.insert("Authorization", &format!("Bearer {}", token));
+                        }
+                        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                        request.headers.insert("Content-Type", "application/json");
+
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        state.assignments_save_rx = Some(rx);
+                        let ctx_clone = ui.ctx().clone();
+                        ehttp::fetch(request, move |result| {
+                            let _ = tx.send(result.is_ok());
+                            ctx_clone.request_repaint();
+                        });
+                    }
+                }
+
+                if let Some(rx) = &state.assignments_save_rx {
+                    if let Ok(success) = rx.try_recv() {
+                        state.assignments_save_rx = None;
+                        if success {
+                            // Done
+                        }
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("Saving...");
+                        });
+                    }
+                }
             }
         }
     }
