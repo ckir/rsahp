@@ -6,7 +6,7 @@ pre-commit:
     clippy:
       run: cargo clippy -- -D warnings
     test:
-      run: cargo test --lib
+      run: cargo test
 
 pre-push:
   commands:

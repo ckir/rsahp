@@ -32,11 +32,13 @@ jobs:
     - name: Cache dependencies
       uses: Swatinem/rust-cache@v2
 
-    - name: Run Lefthook (Pre-Commit Equivalent)
+    - name: Lint and Format
       run: |
         cargo fmt --all -- --check
         cargo clippy -- -D warnings
-        cargo test --lib
+        
+    - name: Run All Tests (including Headless UI)
+      run: cargo test
       
     - name: Build Everything
       run: cargo build --release
