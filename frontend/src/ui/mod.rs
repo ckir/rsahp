@@ -30,7 +30,7 @@ impl eframe::App for RsahpApp {
             ctx.set_pixels_per_point(scale);
         }
 
-        let api_url = self.config.api_url.clone().unwrap_or_else(|| "http://127.0.0.1:3002/api/documents".to_string());
+        let api_url = self.config.api_url.clone().unwrap_or_else(|| "http://127.0.0.1:4002/api/documents".to_string());
 
         // Render Bottom Taskbar
         taskbar::render(ctx, &mut self.show_task_list, &mut self.config);
