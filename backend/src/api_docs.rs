@@ -26,7 +26,10 @@ pub fn router() -> Router<DatabaseConnection> {
         .route("/{id}/duplicate", post(duplicate_document))
         .route("/{id}/move", post(move_document))
         .route("/{id}/nodes", get(list_nodes).post(create_node))
-        .route("/{id}/nodes/{node_id}", delete(delete_node))
+        .route(
+            "/{id}/nodes/{node_id}",
+            delete(delete_node).put(update_node),
+        )
         .route(
             "/{id}/comparisons",
             get(list_comparisons).post(create_comparison),
@@ -139,6 +142,7 @@ pub struct NodeDto {
     pub parent_node_id: Option<i32>,
     pub name: String,
     pub node_type: String, // "Goal", "Criteria", "Alternative"
+    pub cost: Option<f64>,
 }
 
 async fn list_nodes(
@@ -163,6 +167,7 @@ async fn create_node(
         parent_node_id: Set(payload.parent_node_id),
         name: Set(payload.name),
         node_type: Set(payload.node_type),
+        cost: Set(payload.cost),
         ..Default::default()
     };
     let result = new_node
@@ -170,6 +175,30 @@ async fn create_node(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(result))
+}
+
+async fn update_node(
+    State(db): State<DatabaseConnection>,
+    Path((_doc_id, node_id)): Path<(i32, i32)>,
+    Json(payload): Json<NodeDto>,
+) -> Result<Json<node::Model>, (StatusCode, String)> {
+    let mut node_am: node::ActiveModel = node::Entity::find_by_id(node_id)
+        .one(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Node not found".to_string()))?
+        .into();
+
+    node_am.name = Set(payload.name);
+    node_am.parent_node_id = Set(payload.parent_node_id);
+    node_am.node_type = Set(payload.node_type);
+    node_am.cost = Set(payload.cost);
+
+    let updated = node_am
+        .update(&db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(updated))
 }
 
 async fn delete_node(

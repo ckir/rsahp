@@ -55,6 +55,14 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
         ))
         .await;
 
+    // Add cost to node if it doesn't exist
+    let _ = db
+        .execute(sea_orm::Statement::from_string(
+            builder,
+            "ALTER TABLE \"node\" ADD COLUMN \"cost\" REAL;".to_string(),
+        ))
+        .await;
+
     // Insert mock user group and user for development
     let _ = db
         .execute(sea_orm::Statement::from_string(

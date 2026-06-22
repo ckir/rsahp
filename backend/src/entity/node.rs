@@ -10,6 +10,7 @@ pub struct Model {
     pub parent_node_id: Option<i32>,
     pub name: String,
     pub node_type: String, // "Goal", "Criteria", "Alternative"
+    pub cost: Option<f64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

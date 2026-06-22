@@ -12,6 +12,8 @@ pub enum DirPosition {
 pub struct CriteriaNode {
     pub id: usize,
     pub name: String,
+    pub cost: Option<f64>,
+    pub node_type: String,
     pub children: Vec<CriteriaNode>,
 }
 
@@ -75,6 +77,19 @@ impl CriteriaNode {
         false
     }
 
+    pub fn set_cost(&mut self, id: usize, new_cost: Option<f64>) -> bool {
+        if self.id == id {
+            self.cost = new_cost;
+            return true;
+        }
+        for child in &mut self.children {
+            if child.set_cost(id, new_cost) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn find(&self, id: usize) -> Option<&CriteriaNode> {
         if self.id == id {
             return Some(self);
@@ -90,9 +105,10 @@ impl CriteriaNode {
 
 #[derive(Clone)]
 pub enum CriteriaModalAction {
-    AddChild(usize, DirPosition),
+    AddChild(usize, DirPosition, String),
     ConfirmDelete(usize),
     Rename(usize),
+    EditCost(usize),
 }
 
 pub struct CriteriaModalState {
@@ -121,6 +137,16 @@ pub struct DocumentState {
     pub load_rx: Option<std::sync::mpsc::Receiver<Result<ExportedDocument, String>>>,
     pub save_rx: Option<std::sync::mpsc::Receiver<bool>>,
     pub duplicated_doc_rx: Option<std::sync::mpsc::Receiver<DocumentModel>>,
+    pub sort_column: SortColumn,
+    pub sort_descending: bool,
+}
+
+#[derive(PartialEq)]
+pub enum SortColumn {
+    CandidateName,
+    Alignment,
+    Cost,
+    ValueScore,
 }
 
 #[derive(PartialEq)]
@@ -146,6 +172,8 @@ impl DocumentState {
             criteria: CriteriaNode {
                 id: 0,
                 name: "ROOT".to_string(),
+                node_type: "Goal".to_string(),
+                cost: None,
                 children: vec![],
             },
             open_nodes: std::collections::HashSet::new(),
@@ -157,6 +185,8 @@ impl DocumentState {
             load_rx: None,
             save_rx: None,
             duplicated_doc_rx: None,
+            sort_column: SortColumn::Alignment,
+            sort_descending: true,
         }
     }
 }
@@ -186,6 +216,7 @@ pub struct NodeModel {
     pub parent_node_id: Option<i32>,
     pub name: String,
     pub node_type: String,
+    pub cost: Option<f64>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -221,6 +252,7 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
             state.goal.clone()
         },
         node_type: "Goal".to_string(),
+        cost: None,
     });
 
     fn traverse(node: &CriteriaNode, doc_id: i32, parent_id: i32, out: &mut Vec<NodeModel>) {
@@ -229,7 +261,8 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
             document_id: doc_id,
             parent_node_id: Some(parent_id),
             name: node.name.clone(),
-            node_type: "Criteria".to_string(),
+            node_type: node.node_type.clone(),
+            cost: node.cost,
         });
         for child in &node.children {
             traverse(child, doc_id, node.id as i32, out);
@@ -371,6 +404,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             children.push(CriteriaNode {
                                 id: n.id as usize,
                                 name: n.name.clone(),
+                                node_type: n.node_type.clone(),
+                                cost: n.cost,
                                 children: build_tree(nodes, n.id),
                             });
                         }
@@ -529,12 +564,28 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
 
             let mut context_menu_actions = Vec::<CriteriaModalAction>::new();
 
-            if ui.button("➕ Add Top-level Criteria").clicked() {
-                state.modal_state = Some(CriteriaModalState {
-                    action: CriteriaModalAction::AddChild(0, DirPosition::Last),
-                    input_name: String::new(),
-                });
-            }
+            ui.horizontal(|ui| {
+                if ui.button("➕ Add Top-level Criteria").clicked() {
+                    state.modal_state = Some(CriteriaModalState {
+                        action: CriteriaModalAction::AddChild(
+                            0,
+                            DirPosition::Last,
+                            "Criteria".to_string(),
+                        ),
+                        input_name: String::new(),
+                    });
+                }
+                if ui.button("➕ Add Candidate").clicked() {
+                    state.modal_state = Some(CriteriaModalState {
+                        action: CriteriaModalAction::AddChild(
+                            0,
+                            DirPosition::Last,
+                            "Alternative".to_string(),
+                        ),
+                        input_name: String::new(),
+                    });
+                }
+            });
 
             fn show_node(
                 node: &CriteriaNode,
@@ -545,7 +596,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 let id = ui.make_persistent_id(format!("node_{}", node.id));
                 let is_open = open_nodes.contains(&node.id);
 
-                let mut header = egui::CollapsingHeader::new(&node.name)
+                let mut display_name = node.name.clone();
+
+                let mut header = egui::CollapsingHeader::new(&display_name)
                     .id_salt(id)
                     .open(Some(is_open));
 
@@ -583,7 +636,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         ui.close();
                     }
                     if ui.button("➕ Add Sub-criteria").clicked() {
-                        actions.push(CriteriaModalAction::AddChild(node.id, DirPosition::Last));
+                        actions.push(CriteriaModalAction::AddChild(
+                            node.id,
+                            DirPosition::Last,
+                            "Criteria".to_string(),
+                        ));
                         ui.close();
                     }
                 });
@@ -591,9 +648,43 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
 
             egui::ScrollArea::both().show(ui, |ui| {
                 ui.push_id(format!("criteria_tree_scope_{}", state.id), |ui| {
-                    // Show Root Node children (since Goal is a single top level virtual node, we iterate children)
-                    for child in &state.criteria.children {
+                    ui.heading("▾ CRITERIA");
+                    for child in state
+                        .criteria
+                        .children
+                        .iter()
+                        .filter(|c| c.node_type == "Criteria")
+                    {
                         show_node(child, &mut context_menu_actions, &mut state.open_nodes, ui);
+                    }
+
+                    ui.add_space(20.0);
+                    ui.heading("▾ CANDIDATES");
+                    for child in state
+                        .criteria
+                        .children
+                        .iter()
+                        .filter(|c| c.node_type == "Alternative")
+                    {
+                        ui.horizontal(|ui| {
+                            if ui.button("🗑️").clicked() {
+                                context_menu_actions
+                                    .push(CriteriaModalAction::ConfirmDelete(child.id));
+                            }
+                            ui.label(format!("• {}", child.name));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.button("✏️ Edit Cost").clicked() {
+                                        context_menu_actions
+                                            .push(CriteriaModalAction::EditCost(child.id));
+                                    }
+                                    if let Some(cost) = child.cost {
+                                        ui.label(format!("Cost: ${}", cost));
+                                    }
+                                },
+                            );
+                        });
                     }
                 });
             });
@@ -606,9 +697,13 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             input_name: String::new(),
                         });
                     }
-                    CriteriaModalAction::AddChild(parent_id, position) => {
+                    CriteriaModalAction::AddChild(parent_id, position, ref node_type) => {
                         state.modal_state = Some(CriteriaModalState {
-                            action: CriteriaModalAction::AddChild(parent_id, position),
+                            action: CriteriaModalAction::AddChild(
+                                parent_id,
+                                position.clone(),
+                                node_type.clone(),
+                            ),
                             input_name: String::new(),
                         });
                     }
@@ -623,6 +718,17 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             input_name: current_name,
                         });
                     }
+                    CriteriaModalAction::EditCost(id) => {
+                        let current_cost = state
+                            .criteria
+                            .find(id)
+                            .and_then(|n| n.cost.map(|c| c.to_string()))
+                            .unwrap_or_default();
+                        state.modal_state = Some(CriteriaModalState {
+                            action: CriteriaModalAction::EditCost(id),
+                            input_name: current_cost,
+                        });
+                    }
                 }
             }
 
@@ -632,9 +738,16 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 let mut submitted = false;
 
                 let title = match modal.action {
-                    CriteriaModalAction::AddChild(..) => "New Criteria Name",
+                    CriteriaModalAction::AddChild(_, _, ref nt) => {
+                        if nt == "Alternative" {
+                            "Enter Candidate Name"
+                        } else {
+                            "Enter new Criteria Name"
+                        }
+                    }
                     CriteriaModalAction::ConfirmDelete(..) => "Confirm Deletion",
                     CriteriaModalAction::Rename(..) => "Rename Criteria",
+                    CriteriaModalAction::EditCost(..) => "Edit Cost",
                 };
 
                 egui::Window::new(title)
@@ -665,7 +778,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             }
                             _ => {
                                 ui.horizontal(|ui| {
-                                    ui.label("Name:");
+                                    if let CriteriaModalAction::EditCost(_) = modal.action {
+                                        ui.label("Cost:");
+                                    } else {
+                                        ui.label("Name:");
+                                    }
                                     let response = ui.text_edit_singleline(&mut modal.input_name);
                                     response.request_focus();
                                 });
@@ -688,12 +805,14 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                             state.is_modified = true;
                             state.modal_state = None;
                         }
-                        CriteriaModalAction::AddChild(parent_id, position) => {
+                        CriteriaModalAction::AddChild(parent_id, position, ref node_type) => {
                             if !modal.input_name.trim().is_empty() {
                                 let name = modal.input_name.trim().to_string();
                                 let child = CriteriaNode {
                                     id: state.next_id,
                                     name,
+                                    node_type: node_type.clone(),
+                                    cost: None,
                                     children: vec![],
                                 };
                                 let id = state.next_id;
@@ -715,6 +834,20 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                                 state.modal_state = None;
                             } else {
                                 submitted = false; // keep open
+                            }
+                        }
+                        CriteriaModalAction::EditCost(id) => {
+                            let input = modal.input_name.trim();
+                            if input.is_empty() {
+                                state.criteria.set_cost(id, None);
+                                state.is_modified = true;
+                                state.modal_state = None;
+                            } else if let Ok(val) = input.parse::<f64>() {
+                                state.criteria.set_cost(id, Some(val));
+                                state.is_modified = true;
+                                state.modal_state = None;
+                            } else {
+                                submitted = false; // keep open if invalid number
                             }
                         }
                     }
@@ -742,12 +875,17 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             ui.separator();
             ui.heading("Pairwise Comparisons");
 
-            fn generate_comparisons(
+            fn generate_phase1(
                 node: &CriteriaNode,
                 comps: &mut Vec<(String, Vec<(String, usize, usize)>)>,
                 goal_text: &str,
             ) {
-                let n = node.children.len();
+                let criteria_children: Vec<&CriteriaNode> = node
+                    .children
+                    .iter()
+                    .filter(|c| c.node_type == "Criteria")
+                    .collect();
+                let n = criteria_children.len();
                 if n >= 2 {
                     let parent_name = if node.id == 0 {
                         if goal_text.is_empty() {
@@ -762,73 +900,126 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                     let mut group_comps = Vec::new();
                     for i in 0..n {
                         for j in (i + 1)..n {
-                            let title =
-                                format!("{} vs {}", node.children[i].name, node.children[j].name);
-                            group_comps.push((title, node.children[i].id, node.children[j].id));
+                            let title = format!(
+                                "{} vs {}",
+                                criteria_children[i].name, criteria_children[j].name
+                            );
+                            group_comps.push((
+                                title,
+                                criteria_children[i].id,
+                                criteria_children[j].id,
+                            ));
                         }
                     }
                     comps.push((group_title, group_comps));
                 }
-                for child in &node.children {
-                    generate_comparisons(child, comps, goal_text);
+                for child in criteria_children {
+                    generate_phase1(child, comps, goal_text);
                 }
             }
 
             let mut grouped_comparisons = Vec::new();
-            generate_comparisons(&state.criteria, &mut grouped_comparisons, &state.goal);
+
+            // Phase 1
+            let mut phase1_comps = Vec::new();
+            generate_phase1(&state.criteria, &mut phase1_comps, &state.goal);
+            if !phase1_comps.is_empty() {
+                grouped_comparisons.push(("PHASE 1: WEIGHTING THE CRITERIA".to_string(), vec![]));
+                grouped_comparisons.extend(phase1_comps);
+            }
+
+            // Phase 2
+            let candidates: Vec<&CriteriaNode> = state
+                .criteria
+                .children
+                .iter()
+                .filter(|c| c.node_type == "Alternative")
+                .collect();
+            let top_criteria: Vec<&CriteriaNode> = state
+                .criteria
+                .children
+                .iter()
+                .filter(|c| c.node_type == "Criteria")
+                .collect();
+
+            if !candidates.is_empty() && top_criteria.len() >= 2 {
+                grouped_comparisons.push(("PHASE 2: CANDIDATE PROFILES".to_string(), vec![]));
+                for cand in candidates {
+                    let group_title = format!("With respect to: {}", cand.name);
+                    let mut group_comps = Vec::new();
+                    let n = top_criteria.len();
+                    for i in 0..n {
+                        for j in (i + 1)..n {
+                            let title =
+                                format!("{} vs {}", top_criteria[i].name, top_criteria[j].name);
+                            // We offset candidate IDs for the mock values so they are uniquely scoped by candidate
+                            let id1 = top_criteria[i].id + cand.id * 10000;
+                            let id2 = top_criteria[j].id + cand.id * 10000;
+                            group_comps.push((title, id1, id2));
+                        }
+                    }
+                    grouped_comparisons.push((group_title, group_comps));
+                }
+            }
 
             let mut flat_comparisons = Vec::new();
             for (g_title, comps) in &grouped_comparisons {
+                if comps.is_empty() {
+                    continue;
+                } // Skip Phase headers for the wizard flat list
                 for (title, id1, id2) in comps {
                     flat_comparisons.push((g_title.clone(), title.clone(), *id1, *id2));
                 }
             }
 
             if flat_comparisons.is_empty() {
-                ui.label("Add at least two criteria under the same parent to begin comparisons.");
+                ui.label("Add at least two criteria and a candidate to begin comparisons.");
             } else {
-                let render_selector = |ui: &mut egui::Ui, title: &str, val: &mut f64| -> bool {
-                    let mut changed = false;
+                let render_selector =
+                    |ui: &mut egui::Ui, g_title: &str, title: &str, val: &mut f64| -> bool {
+                        let mut changed = false;
 
-                    if (*val - 0.0).abs() < 0.001 {
-                        *val = 1.0;
-                    }
+                        if (*val - 0.0).abs() < 0.001 {
+                            *val = 1.0;
+                        }
 
-                    let options = [
-                        (9.0, "Extreme importance"),
-                        (7.0, "Very strong importance"),
-                        (5.0, "Strong importance"),
-                        (3.0, "Moderate importance"),
-                        (1.0, "Equal importance"),
-                        (1.0 / 3.0, "Moderate less importance"),
-                        (1.0 / 5.0, "Strong less importance"),
-                        (1.0 / 7.0, "Very strong less importance"),
-                        (1.0 / 9.0, "Extreme less importance"),
-                    ];
+                        let options = [
+                            (9.0, "Extreme importance"),
+                            (7.0, "Very strong importance"),
+                            (5.0, "Strong importance"),
+                            (3.0, "Moderate importance"),
+                            (1.0, "Equal importance"),
+                            (1.0 / 3.0, "Moderate less importance"),
+                            (1.0 / 5.0, "Strong less importance"),
+                            (1.0 / 7.0, "Very strong less importance"),
+                            (1.0 / 9.0, "Extreme less importance"),
+                        ];
 
-                    let current_text = options
-                        .iter()
-                        .min_by(|a, b| {
-                            (a.0 - *val)
-                                .abs()
-                                .partial_cmp(&(b.0 - *val).abs())
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .map(|(_, text)| text.to_string())
-                        .unwrap_or_else(|| "Equal importance".to_string());
+                        let current_text = options
+                            .iter()
+                            .min_by(|a, b| {
+                                (a.0 - *val)
+                                    .abs()
+                                    .partial_cmp(&(b.0 - *val).abs())
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(_, text)| text.to_string())
+                            .unwrap_or_else(|| "Equal importance".to_string());
 
-                    egui::ComboBox::from_id_source(title)
-                        .width(250.0)
-                        .selected_text(current_text)
-                        .show_ui(ui, |ui| {
-                            for (v, text) in options.iter() {
-                                if ui.selectable_value(val, *v, text.to_string()).changed() {
-                                    changed = true;
+                        // Use a unique ID source combining the group title and title to prevent collision
+                        let id_source = format!("{} - {} - selector", g_title, title);
+                        egui::ComboBox::from_id_source(id_source)
+                            .width(250.0)
+                            .selected_text(current_text)
+                            .show_ui(ui, |ui| {
+                                for (v, text) in options.iter() {
+                                    if ui.selectable_value(val, *v, text.to_string()).changed() {
+                                        changed = true;
+                                    }
                                 }
-                            }
-                        });
-                    changed
-                };
+                            });
+                        changed
+                    };
 
                 if state.input_mode == "Wizard" {
                     if state.wizard_step >= flat_comparisons.len() {
@@ -840,10 +1031,16 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
 
                     ui.group(|ui| {
                         ui.label(egui::RichText::new(g_title).strong());
-                        ui.label(format!("Compare: {}", title));
-                        if render_selector(ui, title, val) {
-                            state.is_modified = true;
-                        }
+                        ui.horizontal(|ui| {
+                            let parts: Vec<&str> = title.split(" vs ").collect();
+                            let name1 = parts.get(0).unwrap_or(&"");
+                            let name2 = parts.get(1).unwrap_or(&"");
+                            ui.label(*name1);
+                            if render_selector(ui, g_title, title, val) {
+                                state.is_modified = true;
+                            }
+                            ui.label(*name2);
+                        });
 
                         ui.horizontal(|ui| {
                             if ui
@@ -866,68 +1063,227 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 } else {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for (i, (g_title, comps)) in grouped_comparisons.iter().enumerate() {
-                            if i > 0 {
+                            if comps.is_empty() {
+                                // This is a Phase header
+                                ui.add_space(20.0);
+                                ui.label(
+                                    egui::RichText::new(g_title)
+                                        .heading()
+                                        .color(egui::Color32::from_rgb(100, 150, 255)),
+                                );
+                                ui.separator();
+                                continue;
+                            }
+
+                            if i > 0 && !grouped_comparisons[i - 1].1.is_empty() {
+                                ui.add_space(10.0);
                                 ui.separator();
                             }
-                            ui.label(egui::RichText::new(g_title).heading().strong());
+
+                            ui.label(egui::RichText::new(g_title).strong());
                             ui.add_space(5.0);
                             for (title, id1, id2) in comps {
                                 let val = state.saaty_values.entry((*id1, *id2)).or_insert(1.0);
+                                let parts: Vec<&str> = title.split(" vs ").collect();
+                                let name1 = parts.get(0).unwrap_or(&"");
+                                let name2 = parts.get(1).unwrap_or(&"");
+
                                 ui.group(|ui| {
-                                    ui.label(title);
-                                    if render_selector(ui, title, val) {
-                                        state.is_modified = true;
-                                    }
+                                    ui.horizontal(|ui| {
+                                        ui.label(*name1);
+                                        if render_selector(ui, g_title, title, val) {
+                                            state.is_modified = true;
+                                        }
+                                        ui.label(*name2);
+                                    });
                                 });
                             }
-                            ui.add_space(10.0);
                         }
                     });
                 }
             }
         }
         DocumentTab::Results => {
-            ui.heading("Results & Consensus");
-            ui.label("Priority Vectors and Consistency Ratio (CR):");
-
-            // Mock CR logic based on sliders to show the soft warning
-            let mut mock_cr = 0.05;
-            if state.saaty_values.values().any(|&v| v.abs() > 5.0) {
-                // Introduce inconsistency for demonstration
-                mock_cr = 0.15;
-            }
-
-            ui.label(format!("Consistency Ratio (CR): {:.3}", mock_cr));
-
-            if mock_cr > 0.10 {
-                ui.colored_label(egui::Color32::from_rgb(200, 100, 0), "⚠️ Warning: CR > 0.10. Judgments may be inconsistent. Please review your comparisons.");
-            } else {
-                ui.colored_label(
-                    egui::Color32::from_rgb(0, 200, 0),
-                    "✅ CR is within acceptable limits (< 0.10).",
-                );
-            }
+            ui.heading("Results & Alignment");
+            ui.label("Detailed breakdown of how each Candidate scores across your Criteria.");
 
             ui.separator();
 
-            fn collect_criteria(node: &CriteriaNode, list: &mut Vec<String>) {
-                if node.id != 0 {
-                    list.push(node.name.clone());
-                }
-                for child in &node.children {
-                    collect_criteria(child, list);
-                }
-            }
-            let mut all_criteria = Vec::new();
-            collect_criteria(&state.criteria, &mut all_criteria);
+            let candidates: Vec<&CriteriaNode> = state
+                .criteria
+                .children
+                .iter()
+                .filter(|c| c.node_type == "Alternative")
+                .collect();
+            let top_criteria: Vec<&CriteriaNode> = state
+                .criteria
+                .children
+                .iter()
+                .filter(|c| c.node_type == "Criteria")
+                .collect();
 
-            if all_criteria.is_empty() {
+            if candidates.is_empty() {
+                ui.label("No candidates defined.");
+            } else if top_criteria.is_empty() {
                 ui.label("No criteria defined.");
             } else {
-                let mock_weight = 1.0 / (all_criteria.len() as f64);
-                for c in all_criteria {
-                    ui.label(format!("{}: {:.3}", c, mock_weight));
+                struct CandidateResult {
+                    name: String,
+                    alignment: f64,
+                    cost: Option<f64>,
+                    value_score: Option<f64>,
+                    criteria_scores: std::collections::HashMap<usize, f64>,
                 }
+
+                let mut results = Vec::new();
+
+                for cand in candidates {
+                    let mut mock_alignment = 0.0;
+                    let mut criteria_scores = std::collections::HashMap::new();
+
+                    for (i, crit) in top_criteria.iter().enumerate() {
+                        let crit_weight = 1.0 / (top_criteria.len() as f64);
+                        let profile_score = ((i + cand.id) as f64 % 3.0 + 1.0) / 5.0; // dummy math
+                        mock_alignment += crit_weight * profile_score;
+                        criteria_scores.insert(crit.id, profile_score);
+                    }
+
+                    let value_score = if let Some(c) = cand.cost {
+                        if mock_alignment > 0.0 && c > 0.0 {
+                            Some(mock_alignment / c)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    results.push(CandidateResult {
+                        name: cand.name.clone(),
+                        alignment: mock_alignment,
+                        cost: cand.cost,
+                        value_score,
+                        criteria_scores,
+                    });
+                }
+
+                // Sorting Logic: Auto-sort by Value Score Descending left-to-right
+                results.sort_by(|a, b| {
+                    let val_a = a.value_score.unwrap_or(f64::MIN);
+                    let val_b = b.value_score.unwrap_or(f64::MIN);
+                    val_b
+                        .partial_cmp(&val_a)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+
+                use egui_extras::{Column, TableBuilder};
+
+                let mut table = TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::initial(150.0).at_least(100.0)); // Metric Name
+
+                for _ in 0..results.len() {
+                    table = table.column(Column::initial(120.0));
+                }
+
+                table
+                    .header(25.0, |mut header| {
+                        header.col(|ui| {
+                            ui.strong("Metric / Criteria");
+                        });
+                        for (idx, cand) in results.iter().enumerate() {
+                            header.col(|ui| {
+                                if idx == 0
+                                    && cand.value_score.is_some()
+                                    && cand.value_score.unwrap() > 0.0
+                                {
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "⭐ Best Value - {}",
+                                            cand.name
+                                        ))
+                                        .strong()
+                                        .color(egui::Color32::from_rgb(200, 160, 0)),
+                                    );
+                                } else {
+                                    ui.strong(&cand.name);
+                                }
+                            });
+                        }
+                    })
+                    .body(|mut body| {
+                        // Criteria rows
+                        for crit in &top_criteria {
+                            body.row(20.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label(&crit.name);
+                                });
+                                for cand in &results {
+                                    row.col(|ui| {
+                                        let score =
+                                            cand.criteria_scores.get(&crit.id).unwrap_or(&0.0);
+                                        ui.label(format!("{:.4}", score));
+                                    });
+                                }
+                            });
+                        }
+
+                        // Total Alignment
+                        body.row(25.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label(egui::RichText::new("Total Alignment").strong());
+                            });
+                            for cand in &results {
+                                row.col(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "{:.2}%",
+                                            cand.alignment * 100.0
+                                        ))
+                                        .strong(),
+                                    );
+                                });
+                            }
+                        });
+
+                        // Cost
+                        body.row(25.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label(egui::RichText::new("Cost").strong());
+                            });
+                            for cand in &results {
+                                row.col(|ui| {
+                                    if let Some(c) = cand.cost {
+                                        ui.label(egui::RichText::new(format!("{:.2}", c)).strong());
+                                    } else {
+                                        ui.label(egui::RichText::new("-").strong());
+                                    }
+                                });
+                            }
+                        });
+
+                        // Value Score
+                        body.row(25.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label(egui::RichText::new("Value Score").strong());
+                            });
+                            for cand in &results {
+                                row.col(|ui| {
+                                    if let Some(v) = cand.value_score {
+                                        ui.label(
+                                            egui::RichText::new(format!("{:.4}", v))
+                                                .color(egui::Color32::from_rgb(0, 200, 100))
+                                                .strong(),
+                                        );
+                                    } else {
+                                        ui.label(egui::RichText::new("-").strong());
+                                    }
+                                });
+                            }
+                        });
+                    });
             }
         }
     }

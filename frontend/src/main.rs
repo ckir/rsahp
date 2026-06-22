@@ -26,7 +26,9 @@ fn main() -> Result<(), eframe::Error> {
     };
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1200.0, 800.0])
+            .with_maximized(true),
         hardware_acceleration,
         ..Default::default()
     };
