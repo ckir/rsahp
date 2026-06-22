@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "frontend",
+    "backend"
+]
+resolver = "2"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"

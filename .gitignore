@@ -1,0 +1,6 @@
+/target/
+/logs/
+*.db
+*.db-journal
+/backend/logs/
+/frontend/logs/
