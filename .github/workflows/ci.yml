@@ -55,3 +55,16 @@ jobs:
         path: |
           logs/
           rsahp.db
+
+    - name: Upload Release Binaries
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rsahp-release-${{ matrix.os }}
+        path: |
+          target/release/frontend
+          target/release/frontend.exe
+          target/release/backend
+          target/release/backend.exe
+        if-no-files-found: ignore
+        retention-days: 1
