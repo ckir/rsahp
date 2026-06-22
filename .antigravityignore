@@ -1,0 +1,17 @@
+# Ignore Build Artifacts
+target/
+Cargo.lock
+
+# Ignore Database and Runtime states
+*.db
+*.db-journal
+rsahp.db
+rsahp.db-journal
+
+# Ignore Logs
+logs/
+backend/logs/
+frontend/logs/
+
+# Ignore Git
+.git/
