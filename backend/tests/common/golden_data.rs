@@ -44,6 +44,6 @@ pub fn invalid_consistency_matrix() -> GoldenMatrix {
             vec![9.0, 1.0 / 9.0, 1.0],
         ],
         expected_weights: vec![0.333, 0.333, 0.333], // weights for completely inconsistent ring
-        expected_cr: 10.0, // huge CR
+        expected_cr: 10.0,                           // huge CR
     }
 }

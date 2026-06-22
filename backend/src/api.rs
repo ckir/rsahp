@@ -1,8 +1,8 @@
-use axum::{routing::post, Json, Router};
+use axum::{Json, Router, routing::post};
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
 
-use crate::ahp::{aggregate_aij, aggregate_aip, calculate_priorities, AhpResult};
+use crate::ahp::{AhpResult, aggregate_aij, aggregate_aip, calculate_priorities};
 
 pub fn router() -> Router {
     Router::new()

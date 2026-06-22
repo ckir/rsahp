@@ -8,7 +8,8 @@ pub enum DirPosition {
     Last,
     Before(usize),
     After(usize),
-}pub struct CriteriaNode {
+}
+pub struct CriteriaNode {
     pub id: usize,
     pub name: String,
     pub children: Vec<CriteriaNode>,
@@ -28,7 +29,12 @@ impl CriteriaNode {
         }
     }
 
-    pub fn insert(&mut self, parent_id: usize, position: DirPosition, value: CriteriaNode) -> Result<(), CriteriaNode> {
+    pub fn insert(
+        &mut self,
+        parent_id: usize,
+        position: DirPosition,
+        value: CriteriaNode,
+    ) -> Result<(), CriteriaNode> {
         if self.id == parent_id {
             match position {
                 DirPosition::First => self.children.insert(0, value),
@@ -68,7 +74,7 @@ impl CriteriaNode {
         }
         false
     }
-    
+
     pub fn find(&self, id: usize) -> Option<&CriteriaNode> {
         if self.id == id {
             return Some(self);
@@ -100,7 +106,7 @@ pub struct DocumentState {
     pub version: i32,
     pub active_tab: DocumentTab,
     pub aggregation_mode: String, // "AIJ" or "AIP"
-    pub input_mode: String, // "Wizard" or "Scrolling"
+    pub input_mode: String,       // "Wizard" or "Scrolling"
     pub save_status: Option<String>,
     pub saaty_values: HashMap<(usize, usize), f64>,
     pub wizard_step: usize,
@@ -202,14 +208,18 @@ pub struct DocumentDto {
 
 pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Context) {
     let mut nodes = Vec::new();
-    
+
     // Add goal node manually as the root
     let goal_id = 0;
     nodes.push(NodeModel {
         id: goal_id,
         document_id: state.id,
         parent_node_id: None,
-        name: if state.goal.is_empty() { "Goal".to_string() } else { state.goal.clone() },
+        name: if state.goal.is_empty() {
+            "Goal".to_string()
+        } else {
+            state.goal.clone()
+        },
         node_type: "Goal".to_string(),
     });
 
@@ -225,7 +235,7 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
             traverse(child, doc_id, node.id as i32, out);
         }
     }
-    
+
     for child in &state.criteria.children {
         traverse(child, state.id, goal_id, &mut nodes);
     }
@@ -271,20 +281,24 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
     };
 
     if let Ok(body) = serde_json::to_vec(&export) {
-        let mut request = ehttp::Request::post(&format!("{}/{}/full", api_url, state.id), body);
+        let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
         request.headers.headers.clear();
         request.headers.insert("Content-Type", "application/json");
         let ctx_clone = ctx.clone();
         state.save_status = Some("Saving...".to_string());
         state.is_modified = false;
-        
+
         let (tx, rx) = std::sync::mpsc::channel();
         state.save_rx = Some(rx);
 
         ehttp::fetch(request, move |result| {
             match result {
                 Ok(res) => {
-                    tracing::info!("Save Result: Status: {}, Text: {}", res.status, res.text().unwrap_or(""));
+                    tracing::info!(
+                        "Save Result: Status: {}, Text: {}",
+                        res.status,
+                        res.text().unwrap_or("")
+                    );
                     let text = res.text().unwrap_or("");
                     if res.status >= 200 && res.status < 300 && !text.contains("\"ok\":false") {
                         let _ = tx.send(true);
@@ -309,7 +323,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
         let url = format!("{}/{}/export", api_url, state.id);
         let request = ehttp::Request::get(&url);
         let ctx = ui.ctx().clone();
-        
+
         ehttp::fetch(request, move |result| {
             if let Ok(res) = result {
                 if res.status >= 200 && res.status < 300 {
@@ -333,68 +347,76 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
         });
     }
 
-    if let Some(rx) = &state.load_rx {
-        if let Ok(res) = rx.try_recv() {
-            state.load_rx = None;
-            state.is_loaded = true;
-            match res {
-                Ok(data) => {
-                    state.title = data.document.name;
-                    state.version = data.document.version;
-                    state.aggregation_mode = data.document.aggregation_method;
-                    
-                    if let Some(goal) = data.nodes.iter().find(|n| n.node_type == "Goal" || n.parent_node_id.is_none()) {
-                        state.goal = goal.name.clone();
-                        
-                        fn build_tree(nodes: &[NodeModel], parent_id: i32) -> Vec<CriteriaNode> {
-                            let mut children = Vec::new();
-                            for n in nodes.iter().filter(|n| n.parent_node_id == Some(parent_id)) {
-                                children.push(CriteriaNode {
-                                    id: n.id as usize,
-                                    name: n.name.clone(),
-                                    children: build_tree(nodes, n.id),
-                                });
-                            }
-                            children
+    if let Some(rx) = &state.load_rx
+        && let Ok(res) = rx.try_recv()
+    {
+        state.load_rx = None;
+        state.is_loaded = true;
+        match res {
+            Ok(data) => {
+                state.title = data.document.name;
+                state.version = data.document.version;
+                state.aggregation_mode = data.document.aggregation_method;
+
+                if let Some(goal) = data
+                    .nodes
+                    .iter()
+                    .find(|n| n.node_type == "Goal" || n.parent_node_id.is_none())
+                {
+                    state.goal = goal.name.clone();
+
+                    fn build_tree(nodes: &[NodeModel], parent_id: i32) -> Vec<CriteriaNode> {
+                        let mut children = Vec::new();
+                        for n in nodes.iter().filter(|n| n.parent_node_id == Some(parent_id)) {
+                            children.push(CriteriaNode {
+                                id: n.id as usize,
+                                name: n.name.clone(),
+                                children: build_tree(nodes, n.id),
+                            });
                         }
-                        
-                        state.criteria.children = build_tree(&data.nodes, goal.id);
-                        
-                        let max_id = data.nodes.iter().map(|n| n.id).max().unwrap_or(0);
-                        state.next_id = (max_id as usize) + 1;
+                        children
                     }
-                    
-                    state.saaty_values.clear();
-                    for comp in data.comparisons {
-                        state.saaty_values.insert((comp.node_a_id as usize, comp.node_b_id as usize), comp.saaty_value);
-                    }
+
+                    state.criteria.children = build_tree(&data.nodes, goal.id);
+
+                    let max_id = data.nodes.iter().map(|n| n.id).max().unwrap_or(0);
+                    state.next_id = (max_id as usize) + 1;
                 }
-                Err(e) => {
-                    // Ignore 404s for new documents
-                    if !e.contains("404") && !e.contains("Not Found") && !e.contains("Document not found") {
-                        state.save_status = Some(format!("❌ Load Failed: {}", e));
-                    }
+
+                state.saaty_values.clear();
+                for comp in data.comparisons {
+                    state.saaty_values.insert(
+                        (comp.node_a_id as usize, comp.node_b_id as usize),
+                        comp.saaty_value,
+                    );
+                }
+            }
+            Err(e) => {
+                // Ignore 404s for new documents
+                if !e.contains("404")
+                    && !e.contains("Not Found")
+                    && !e.contains("Document not found")
+                {
+                    state.save_status = Some(format!("❌ Load Failed: {}", e));
                 }
             }
         }
     }
 
-    if let Some(rx) = &state.save_rx {
-        if let Ok(success) = rx.try_recv() {
-            if success {
-                state.save_status = Some("✅ Saved!".to_string());
-            } else {
-                state.save_status = Some("❌ Save Failed".to_string());
-            }
-            state.save_rx = None;
+    if let Some(rx) = &state.save_rx
+        && let Ok(success) = rx.try_recv()
+    {
+        if success {
+            state.save_status = Some("✅ Saved!".to_string());
+        } else {
+            state.save_status = Some("❌ Save Failed".to_string());
         }
+        state.save_rx = None;
     }
-
-
 
     // Toolbar
     ui.horizontal(|ui| {
-        if ui.button("💾 Save").clicked() { 
+        if ui.button("💾 Save").clicked() {
             save_document(state, api_url, ui.ctx());
         }
         if ui.button("📄 Save as New Version").clicked() {
@@ -403,54 +425,71 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             let url = format!("{}/{}/duplicate", api_url, state.id);
             let request = ehttp::Request::post(&url, vec![]);
             let ctx = ui.ctx().clone();
-            
+
             let (tx, rx) = std::sync::mpsc::channel();
             state.duplicated_doc_rx = Some(rx);
             state.save_status = Some("Duplicating...".to_string());
-            
+
             ehttp::fetch(request, move |result| {
-                if let Ok(res) = result {
-                    if let Ok(new_doc) = serde_json::from_slice::<DocumentModel>(&res.bytes) {
-                        let _ = tx.send(new_doc);
+                if let Ok(res) = result
+                    && let Ok(new_doc) = serde_json::from_slice::<DocumentModel>(&res.bytes)
+                {
+                    let _ = tx.send(new_doc);
+                }
+                ctx.request_repaint();
+            });
+        }
+        if ui.button("📤 Export JSON").clicked()
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("JSON", &["json"])
+                .set_file_name(format!("{}.json", state.title))
+                .save_file()
+        {
+            let url = format!("{}/{}/export", api_url, state.id);
+            let request = ehttp::Request::get(&url);
+            let ctx = ui.ctx().clone();
+
+            ehttp::fetch(request, move |result| {
+                if let Ok(res) = result
+                    && let Some(json_text) = res.text()
+                {
+                    if let Err(e) = std::fs::write(&path, json_text) {
+                        tracing::error!("Failed to save export: {}", e);
+                    } else {
+                        tracing::info!("Export saved to {:?}", path);
                     }
                 }
                 ctx.request_repaint();
             });
         }
-        if ui.button("📤 Export JSON").clicked() { 
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("JSON", &["json"])
-                .set_file_name(format!("{}.json", state.title))
-                .save_file()
-            {
-                let url = format!("{}/{}/export", api_url, state.id);
-                let request = ehttp::Request::get(&url);
-                let ctx = ui.ctx().clone();
-                
-                ehttp::fetch(request, move |result| {
-                    if let Ok(res) = result {
-                        if let Some(json_text) = res.text() {
-                            if let Err(e) = std::fs::write(&path, json_text) {
-                                tracing::error!("Failed to save export: {}", e);
-                            } else {
-                                tracing::info!("Export saved to {:?}", path);
-                            }
-                        }
-                    }
-                    ctx.request_repaint();
-                });
-            }
-        }
-        
+
         ui.separator();
-        
+
         egui::ComboBox::from_id_salt(format!("agg_mode_{}", state.id))
             .selected_text(format!("Agg: {}", state.aggregation_mode))
             .show_ui(ui, |ui| {
-                if ui.selectable_value(&mut state.aggregation_mode, "AIJ".to_string(), "AIJ (Agg. Judgments)").changed() { state.is_modified = true; }
-                if ui.selectable_value(&mut state.aggregation_mode, "AIP".to_string(), "AIP (Agg. Priorities)").changed() { state.is_modified = true; }
+                if ui
+                    .selectable_value(
+                        &mut state.aggregation_mode,
+                        "AIJ".to_string(),
+                        "AIJ (Agg. Judgments)",
+                    )
+                    .changed()
+                {
+                    state.is_modified = true;
+                }
+                if ui
+                    .selectable_value(
+                        &mut state.aggregation_mode,
+                        "AIP".to_string(),
+                        "AIP (Agg. Priorities)",
+                    )
+                    .changed()
+                {
+                    state.is_modified = true;
+                }
             });
-            
+
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if state.is_modified {
                 ui.label("⚫ Modified");
@@ -460,16 +499,20 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             ui.label(format!("v{}.0", state.version));
         });
     });
-    
+
     ui.separator();
 
     // Tabs
     ui.horizontal(|ui| {
         ui.selectable_value(&mut state.active_tab, DocumentTab::Structure, "Structure");
-        ui.selectable_value(&mut state.active_tab, DocumentTab::Comparisons, "Comparisons");
+        ui.selectable_value(
+            &mut state.active_tab,
+            DocumentTab::Comparisons,
+            "Comparisons",
+        );
         ui.selectable_value(&mut state.active_tab, DocumentTab::Results, "Results");
     });
-    
+
     ui.separator();
 
     // Tab Content
@@ -483,9 +526,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 }
             });
             ui.separator();
-            
+
             let mut context_menu_actions = Vec::<CriteriaModalAction>::new();
-            
+
             if ui.button("➕ Add Top-level Criteria").clicked() {
                 state.modal_state = Some(CriteriaModalState {
                     action: CriteriaModalAction::AddChild(0, DirPosition::Last),
@@ -493,18 +536,23 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 });
             }
 
-            fn show_node(node: &CriteriaNode, actions: &mut Vec<CriteriaModalAction>, open_nodes: &mut std::collections::HashSet<usize>, ui: &mut egui::Ui) {
+            fn show_node(
+                node: &CriteriaNode,
+                actions: &mut Vec<CriteriaModalAction>,
+                open_nodes: &mut std::collections::HashSet<usize>,
+                ui: &mut egui::Ui,
+            ) {
                 let id = ui.make_persistent_id(format!("node_{}", node.id));
                 let is_open = open_nodes.contains(&node.id);
-                
+
                 let mut header = egui::CollapsingHeader::new(&node.name)
                     .id_salt(id)
                     .open(Some(is_open));
-                
+
                 if node.children.is_empty() {
                     header = header.icon(|_ui, _open, _rect| {});
                 }
-                
+
                 let response = header.show(ui, |ui| {
                     for child in &node.children {
                         show_node(child, actions, open_nodes, ui);
@@ -518,7 +566,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         open_nodes.insert(node.id);
                     }
                 }
-                
+
                 response.header_response.context_menu(|ui| {
                     ui.set_width(120.0);
                     ui.label(&node.name);
@@ -565,7 +613,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         });
                     }
                     CriteriaModalAction::Rename(id) => {
-                        let current_name = state.criteria.find(id).map(|n| n.name.clone()).unwrap_or_default();
+                        let current_name = state
+                            .criteria
+                            .find(id)
+                            .map(|n| n.name.clone())
+                            .unwrap_or_default();
                         state.modal_state = Some(CriteriaModalState {
                             action: CriteriaModalAction::Rename(id),
                             input_name: current_name,
@@ -578,7 +630,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                 let mut is_open = true;
                 let mut close_requested = false;
                 let mut submitted = false;
-                
+
                 let title = match modal.action {
                     CriteriaModalAction::AddChild(..) => "New Criteria Name",
                     CriteriaModalAction::ConfirmDelete(..) => "Confirm Deletion",
@@ -667,7 +719,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         }
                     }
                 }
-                
+
                 if (!is_open || close_requested) && !submitted {
                     state.modal_state = None;
                 }
@@ -676,25 +728,42 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
         DocumentTab::Comparisons => {
             ui.horizontal(|ui| {
                 ui.label("View:");
-                ui.radio_value(&mut state.input_mode, "Wizard".to_string(), "Step-by-step (Wizard)");
-                ui.radio_value(&mut state.input_mode, "Scrolling".to_string(), "Single Scrolling Page");
+                ui.radio_value(
+                    &mut state.input_mode,
+                    "Wizard".to_string(),
+                    "Step-by-step (Wizard)",
+                );
+                ui.radio_value(
+                    &mut state.input_mode,
+                    "Scrolling".to_string(),
+                    "Single Scrolling Page",
+                );
             });
             ui.separator();
             ui.heading("Pairwise Comparisons");
-            
-            fn generate_comparisons(node: &CriteriaNode, comps: &mut Vec<(String, Vec<(String, usize, usize)>)>, goal_text: &str) {
+
+            fn generate_comparisons(
+                node: &CriteriaNode,
+                comps: &mut Vec<(String, Vec<(String, usize, usize)>)>,
+                goal_text: &str,
+            ) {
                 let n = node.children.len();
                 if n >= 2 {
                     let parent_name = if node.id == 0 {
-                        if goal_text.is_empty() { "Goal" } else { goal_text }
-                    } else { 
-                        &node.name 
+                        if goal_text.is_empty() {
+                            "Goal"
+                        } else {
+                            goal_text
+                        }
+                    } else {
+                        &node.name
                     };
                     let group_title = format!("With respect to: {}", parent_name);
                     let mut group_comps = Vec::new();
                     for i in 0..n {
-                        for j in (i+1)..n {
-                            let title = format!("{} vs {}", node.children[i].name, node.children[j].name);
+                        for j in (i + 1)..n {
+                            let title =
+                                format!("{} vs {}", node.children[i].name, node.children[j].name);
                             group_comps.push((title, node.children[i].id, node.children[j].id));
                         }
                     }
@@ -720,7 +789,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             } else {
                 let render_selector = |ui: &mut egui::Ui, title: &str, val: &mut f64| -> bool {
                     let mut changed = false;
-                    
+
                     if (*val - 0.0).abs() < 0.001 {
                         *val = 1.0;
                     }
@@ -736,12 +805,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                         (1.0 / 7.0, "Very strong less importance"),
                         (1.0 / 9.0, "Extreme less importance"),
                     ];
-                    
-                    let current_text = options.iter()
-                        .min_by(|a, b| (a.0 - *val).abs().partial_cmp(&(b.0 - *val).abs()).unwrap_or(std::cmp::Ordering::Equal))
+
+                    let current_text = options
+                        .iter()
+                        .min_by(|a, b| {
+                            (a.0 - *val)
+                                .abs()
+                                .partial_cmp(&(b.0 - *val).abs())
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
                         .map(|(_, text)| text.to_string())
                         .unwrap_or_else(|| "Equal importance".to_string());
-                    
+
                     egui::ComboBox::from_id_source(title)
                         .width(250.0)
                         .selected_text(current_text)
@@ -762,19 +837,28 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
                     let idx = state.wizard_step;
                     let (g_title, title, id1, id2) = &flat_comparisons[idx];
                     let val = state.saaty_values.entry((*id1, *id2)).or_insert(1.0);
-                    
+
                     ui.group(|ui| {
                         ui.label(egui::RichText::new(g_title).strong());
                         ui.label(format!("Compare: {}", title));
                         if render_selector(ui, title, val) {
                             state.is_modified = true;
                         }
-                        
+
                         ui.horizontal(|ui| {
-                            if ui.add_enabled(idx > 0, egui::Button::new("Previous")).clicked() {
+                            if ui
+                                .add_enabled(idx > 0, egui::Button::new("Previous"))
+                                .clicked()
+                            {
                                 state.wizard_step -= 1;
                             }
-                            if ui.add_enabled(idx < flat_comparisons.len() - 1, egui::Button::new("Next")).clicked() {
+                            if ui
+                                .add_enabled(
+                                    idx < flat_comparisons.len() - 1,
+                                    egui::Button::new("Next"),
+                                )
+                                .clicked()
+                            {
                                 state.wizard_step += 1;
                             }
                         });
@@ -805,22 +889,25 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
         DocumentTab::Results => {
             ui.heading("Results & Consensus");
             ui.label("Priority Vectors and Consistency Ratio (CR):");
-            
+
             // Mock CR logic based on sliders to show the soft warning
             let mut mock_cr = 0.05;
             if state.saaty_values.values().any(|&v| v.abs() > 5.0) {
                 // Introduce inconsistency for demonstration
-                mock_cr = 0.15; 
+                mock_cr = 0.15;
             }
-            
+
             ui.label(format!("Consistency Ratio (CR): {:.3}", mock_cr));
-            
+
             if mock_cr > 0.10 {
                 ui.colored_label(egui::Color32::from_rgb(200, 100, 0), "⚠️ Warning: CR > 0.10. Judgments may be inconsistent. Please review your comparisons.");
             } else {
-                ui.colored_label(egui::Color32::from_rgb(0, 200, 0), "✅ CR is within acceptable limits (< 0.10).");
+                ui.colored_label(
+                    egui::Color32::from_rgb(0, 200, 0),
+                    "✅ CR is within acceptable limits (< 0.10).",
+                );
             }
-            
+
             ui.separator();
 
             fn collect_criteria(node: &CriteriaNode, list: &mut Vec<String>) {
@@ -833,7 +920,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str) {
             }
             let mut all_criteria = Vec::new();
             collect_criteria(&state.criteria, &mut all_criteria);
-            
+
             if all_criteria.is_empty() {
                 ui.label("No criteria defined.");
             } else {

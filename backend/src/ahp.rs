@@ -10,7 +10,9 @@ pub struct AhpResult {
 }
 
 /// Random Index (RI) table for matrices up to size 10.
-const RANDOM_INDEX: &[f64] = &[0.0, 0.0, 0.0, 0.58, 0.90, 1.12, 1.24, 1.32, 1.41, 1.45, 1.49];
+const RANDOM_INDEX: &[f64] = &[
+    0.0, 0.0, 0.0, 0.58, 0.90, 1.12, 1.24, 1.32, 1.41, 1.45, 1.49,
+];
 
 /// Calculates the priority vector and consistency metrics using the Row Geometric Mean Method.
 pub fn calculate_priorities(matrix: &DMatrix<f64>) -> Result<AhpResult, String> {
@@ -53,7 +55,7 @@ pub fn calculate_priorities(matrix: &DMatrix<f64>) -> Result<AhpResult, String> 
     lambda_max /= n as f64;
 
     let consistency_index = (lambda_max - n as f64) / ((n - 1) as f64);
-    
+
     let ri = if n < RANDOM_INDEX.len() {
         RANDOM_INDEX[n]
     } else {
@@ -120,7 +122,7 @@ pub fn aggregate_aip(vectors: &[DVector<f64>]) -> Result<DVector<f64>, String> {
         }
         consensus[i] = prod.powf(1.0 / num_vectors);
     }
-    
+
     // Normalize
     let sum: f64 = consensus.iter().sum();
     Ok(consensus / sum)
@@ -128,8 +130,8 @@ pub fn aggregate_aip(vectors: &[DVector<f64>]) -> Result<DVector<f64>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{dmatrix, dvector};
     use approx::assert_relative_eq;
+    use nalgebra::{dmatrix, dvector};
 
     #[test]
     fn test_ahp_3x3() {
@@ -142,7 +144,7 @@ mod tests {
         ];
 
         let result = calculate_priorities(&matrix).unwrap();
-        
+
         // Check priority vector roughly equals standard AHP approximations
         // For this matrix, w ≈ [0.279, 0.649, 0.072]
         assert_relative_eq!(result.priority_vector[0], 0.279, epsilon = 0.01);
@@ -177,7 +179,7 @@ mod tests {
     fn test_aip() {
         let v1 = dvector![0.8, 0.2];
         let v2 = dvector![0.2, 0.8];
-        
+
         let consensus = aggregate_aip(&[v1, v2]).unwrap();
         // Geometric mean of both is sqrt(0.16) = 0.4
         // Normalized: [0.5, 0.5]

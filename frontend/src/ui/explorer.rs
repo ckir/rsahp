@@ -1,6 +1,6 @@
-use eframe::egui;
 use super::document_window::DocumentState;
-use egui_ltreeview::{TreeView, TreeViewState, NodeBuilder, Action, DirPosition};
+use eframe::egui;
+use egui_ltreeview::{Action, DirPosition, NodeBuilder, TreeView, TreeViewState};
 
 pub enum Node {
     Directory(Directory),
@@ -49,7 +49,12 @@ impl Node {
             Node::File(_) => None,
         }
     }
-    pub fn insert(&mut self, parent_id: usize, position: DirPosition<usize>, value: Node) -> Result<(), Node> {
+    pub fn insert(
+        &mut self,
+        parent_id: usize,
+        position: DirPosition<usize>,
+        value: Node,
+    ) -> Result<(), Node> {
         match self {
             Node::Directory(dir) => {
                 if dir.id == parent_id {
@@ -57,12 +62,16 @@ impl Node {
                         DirPosition::First => dir.children.insert(0, value),
                         DirPosition::Last => dir.children.push(value),
                         DirPosition::After(after_id) => {
-                            if let Some(index) = dir.children.iter().position(|n| n.id() == after_id) {
+                            if let Some(index) =
+                                dir.children.iter().position(|n| n.id() == after_id)
+                            {
                                 dir.children.insert(index + 1, value);
                             }
                         }
                         DirPosition::Before(before_id) => {
-                            if let Some(index) = dir.children.iter().position(|n| n.id() == before_id) {
+                            if let Some(index) =
+                                dir.children.iter().position(|n| n.id() == before_id)
+                            {
                                 dir.children.insert(index, value);
                             }
                         }
@@ -72,7 +81,7 @@ impl Node {
                     let mut value = Err(value);
                     for node in dir.children.iter_mut() {
                         if let Err(v) = value {
-                            value = node.insert(parent_id, position.clone(), v);
+                            value = node.insert(parent_id, position, v);
                         }
                     }
                     value
@@ -132,7 +141,7 @@ impl Default for ExplorerState {
             name: "My AHP Documents".to_string(),
             children: vec![],
         });
-        
+
         Self {
             import_status: None,
             tree,
@@ -151,28 +160,37 @@ enum ContextMenuActions {
     AddDir(usize, DirPosition<usize>),
 }
 
-fn show_node(builder: &mut egui_ltreeview::TreeViewBuilder<usize>, node: &Node, actions: &mut Vec<ContextMenuActions>) {
+fn show_node(
+    builder: &mut egui_ltreeview::TreeViewBuilder<usize>,
+    node: &Node,
+    actions: &mut Vec<ContextMenuActions>,
+) {
     match node {
         Node::Directory(dir) => {
-            builder.node(NodeBuilder::dir(dir.id).label(&dir.name).default_open(true).context_menu(|ui| {
-                ui.set_width(100.0);
-                ui.label("dir:");
-                ui.label(&dir.name);
-                ui.separator();
-                if ui.button("delete").clicked() {
-                    actions.push(ContextMenuActions::Delete(dir.id));
-                    ui.close();
-                }
-                ui.separator();
-                if ui.button("new file").clicked() {
-                    actions.push(ContextMenuActions::AddLeaf(dir.id, DirPosition::Last));
-                    ui.close();
-                }
-                if ui.button("new directory").clicked() {
-                    actions.push(ContextMenuActions::AddDir(dir.id, DirPosition::Last));
-                    ui.close();
-                }
-            }));
+            builder.node(
+                NodeBuilder::dir(dir.id)
+                    .label(&dir.name)
+                    .default_open(true)
+                    .context_menu(|ui| {
+                        ui.set_width(100.0);
+                        ui.label("dir:");
+                        ui.label(&dir.name);
+                        ui.separator();
+                        if ui.button("delete").clicked() {
+                            actions.push(ContextMenuActions::Delete(dir.id));
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui.button("new file").clicked() {
+                            actions.push(ContextMenuActions::AddLeaf(dir.id, DirPosition::Last));
+                            ui.close();
+                        }
+                        if ui.button("new directory").clicked() {
+                            actions.push(ContextMenuActions::AddDir(dir.id, DirPosition::Last));
+                            ui.close();
+                        }
+                    }),
+            );
             for child in &dir.children {
                 show_node(builder, child, actions);
             }
@@ -180,40 +198,56 @@ fn show_node(builder: &mut egui_ltreeview::TreeViewBuilder<usize>, node: &Node, 
         }
         Node::File(file) => {
             let parent_node = builder.parent_id().copied().unwrap_or(0);
-            builder.node(NodeBuilder::leaf(file.id).label(&file.name).activatable(true).context_menu(|ui| {
-                ui.set_width(100.0);
-                ui.label("file:");
-                ui.label(&file.name);
-                if ui.button("delete").clicked() {
-                    actions.push(ContextMenuActions::Delete(file.id));
-                    ui.close();
-                }
-                ui.separator();
-                if ui.button("new file").clicked() {
-                    actions.push(ContextMenuActions::AddLeaf(parent_node, DirPosition::After(file.id)));
-                    ui.close();
-                }
-                if ui.button("new directory").clicked() {
-                    actions.push(ContextMenuActions::AddDir(parent_node, DirPosition::After(file.id)));
-                    ui.close();
-                }
-            }));
+            builder.node(
+                NodeBuilder::leaf(file.id)
+                    .label(&file.name)
+                    .activatable(true)
+                    .context_menu(|ui| {
+                        ui.set_width(100.0);
+                        ui.label("file:");
+                        ui.label(&file.name);
+                        if ui.button("delete").clicked() {
+                            actions.push(ContextMenuActions::Delete(file.id));
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui.button("new file").clicked() {
+                            actions.push(ContextMenuActions::AddLeaf(
+                                parent_node,
+                                DirPosition::After(file.id),
+                            ));
+                            ui.close();
+                        }
+                        if ui.button("new directory").clicked() {
+                            actions.push(ContextMenuActions::AddDir(
+                                parent_node,
+                                DirPosition::After(file.id),
+                            ));
+                            ui.close();
+                        }
+                    }),
+            );
         }
     }
 }
 
-pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &mut Vec<DocumentState>, api_url: &str) {
+pub fn render(
+    ctx: &egui::Context,
+    state: &mut ExplorerState,
+    open_documents: &mut Vec<DocumentState>,
+    api_url: &str,
+) {
     if !state.fetched_initial && state.tree_rx.is_none() {
         let (tx, rx) = std::sync::mpsc::channel();
         state.tree_rx = Some(rx);
         state.fetched_initial = true;
-        
+
         let mut tree_url = api_url.to_string();
         if tree_url.ends_with('/') {
             tree_url.pop();
         }
         tree_url.push_str("/tree");
-        
+
         let request = ehttp::Request::get(tree_url);
         let ctx_clone = ctx.clone();
         ehttp::fetch(request, move |result| {
@@ -221,11 +255,21 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                 Ok(res) => {
                     if res.status == 200 {
                         match serde_json::from_slice::<TreeDto>(&res.bytes) {
-                            Ok(tree_dto) => { let _ = tx.send(tree_dto); }
-                            Err(e) => tracing::error!("Failed to parse JSON tree: {}. Body: {}", e, String::from_utf8_lossy(&res.bytes)),
+                            Ok(tree_dto) => {
+                                let _ = tx.send(tree_dto);
+                            }
+                            Err(e) => tracing::error!(
+                                "Failed to parse JSON tree: {}. Body: {}",
+                                e,
+                                String::from_utf8_lossy(&res.bytes)
+                            ),
                         }
                     } else {
-                        tracing::error!("Fetch tree failed: Status: {}, Body: {:?}", res.status, res.text());
+                        tracing::error!(
+                            "Fetch tree failed: Status: {}, Body: {:?}",
+                            res.status,
+                            res.text()
+                        );
                     }
                 }
                 Err(e) => tracing::error!("Fetch tree request error: {}", e),
@@ -234,44 +278,50 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
         });
     }
 
-    if let Some(rx) = &state.tree_rx {
-        if let Ok(tree_dto) = rx.try_recv() {
-            // Rebuild tree
-            fn build_node(parent_folder_id: Option<i32>, dto: &TreeDto, next_id: &mut usize) -> Vec<Node> {
-                let mut children = Vec::new();
-                for folder in &dto.folders {
-                    if folder.parent_folder_id == parent_folder_id {
-                        let dir_id = folder.id as usize;
-                        if dir_id >= *next_id { *next_id = dir_id + 1; }
-                        children.push(Node::Directory(Directory {
-                            id: dir_id,
-                            name: folder.name.clone(),
-                            children: build_node(Some(folder.id), dto, next_id),
-                        }));
+    if let Some(rx) = &state.tree_rx
+        && let Ok(tree_dto) = rx.try_recv()
+    {
+        // Rebuild tree
+        fn build_node(
+            parent_folder_id: Option<i32>,
+            dto: &TreeDto,
+            next_id: &mut usize,
+        ) -> Vec<Node> {
+            let mut children = Vec::new();
+            for folder in &dto.folders {
+                if folder.parent_folder_id == parent_folder_id {
+                    let dir_id = folder.id as usize;
+                    if dir_id >= *next_id {
+                        *next_id = dir_id + 1;
                     }
+                    children.push(Node::Directory(Directory {
+                        id: dir_id,
+                        name: folder.name.clone(),
+                        children: build_node(Some(folder.id), dto, next_id),
+                    }));
                 }
-                for doc in &dto.documents {
-                    if doc.folder_id == parent_folder_id {
-                        let file_id = *next_id;
-                        *next_id += 1;
-                        children.push(Node::File(File {
-                            id: file_id,
-                            name: doc.name.clone(),
-                            document_id: Some(doc.id as usize),
-                        }));
-                    }
-                }
-                children
             }
-            
-            let children = build_node(None, &tree_dto, &mut state.next_id);
-            state.tree = Node::Directory(Directory {
-                id: 0, // Root ID is 0
-                name: "My AHP Documents".to_string(),
-                children,
-            });
-            state.tree_rx = None;
+            for doc in &dto.documents {
+                if doc.folder_id == parent_folder_id {
+                    let file_id = *next_id;
+                    *next_id += 1;
+                    children.push(Node::File(File {
+                        id: file_id,
+                        name: doc.name.clone(),
+                        document_id: Some(doc.id as usize),
+                    }));
+                }
+            }
+            children
         }
+
+        let children = build_node(None, &tree_dto, &mut state.next_id);
+        state.tree = Node::Directory(Directory {
+            id: 0, // Root ID is 0
+            name: "My AHP Documents".to_string(),
+            children,
+        });
+        state.tree_rx = None;
     }
 
     #[allow(deprecated)]
@@ -281,37 +331,41 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
         .show(ctx, |ui| {
             ui.heading("Project Explorer");
             ui.separator();
-            
-            if ui.button("📥 Import JSON Document").clicked() {
-                if let Some(path) = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file() {
-                    if let Ok(json_text) = std::fs::read_to_string(&path) {
-                        let mut request = ehttp::Request::post(&format!("{}/import", api_url), json_text.into_bytes());
-                        request.headers.insert("Content-Type", "application/json");
-                        let ctx_clone = ctx.clone();
-                        state.import_status = Some("Importing...".to_string());
-                        ehttp::fetch(request, move |result| {
-                            match result {
-                                Ok(res) => tracing::info!("Import success: {}", res.text().unwrap_or("")),
-                                Err(e) => tracing::error!("Import error: {}", e),
-                            }
-                            ctx_clone.request_repaint();
-                        });
+
+            if ui.button("📥 Import JSON Document").clicked()
+                && let Some(path) = rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"])
+                    .pick_file()
+                && let Ok(json_text) = std::fs::read_to_string(&path)
+            {
+                let mut request =
+                    ehttp::Request::post(format!("{}/import", api_url), json_text.into_bytes());
+                request.headers.insert("Content-Type", "application/json");
+                let ctx_clone = ctx.clone();
+                state.import_status = Some("Importing...".to_string());
+                ehttp::fetch(request, move |result| {
+                    match result {
+                        Ok(res) => {
+                            tracing::info!("Import success: {}", res.text().unwrap_or(""))
+                        }
+                        Err(e) => tracing::error!("Import error: {}", e),
                     }
-                }
+                    ctx_clone.request_repaint();
+                });
             }
             if let Some(status) = &state.import_status {
                 ui.label(status);
             }
             ui.separator();
-            
+
             egui::ScrollArea::both().show(ui, |ui| {
                 let mut context_menu_actions = Vec::<ContextMenuActions>::new();
                 let (_, actions) = TreeView::new(ui.make_persistent_id("explorer_tree"))
                     .allow_drag_and_drop(true)
                     .show_state(ui, &mut state.tree_view_state, |mut builder| {
-                        show_node(&mut builder, &state.tree, &mut context_menu_actions);
+                        show_node(builder, &state.tree, &mut context_menu_actions);
                     });
-                    
+
                 let mut docs_to_open = Vec::new();
                 for action in actions {
                     match action {
@@ -319,25 +373,39 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                             for source_node in &dnd.source {
                                 if let Some(source) = state.tree.remove(*source_node) {
                                     // Send move API
-                                    let target_folder_id = if dnd.target == 0 { "null".to_string() } else { dnd.target.to_string() };
+                                    let target_folder_id = if dnd.target == 0 {
+                                        "null".to_string()
+                                    } else {
+                                        dnd.target.to_string()
+                                    };
                                     let mut url = api_url.to_string();
-                                    if url.ends_with('/') { url.pop(); }
-                                    
+                                    if url.ends_with('/') {
+                                        url.pop();
+                                    }
+
                                     if let Node::File(ref f) = source {
                                         if let Some(did) = f.document_id {
                                             let move_url = format!("{}/{}/move", url, did);
-                                            let payload = format!(r#"{{"folder_id":{}}}"#, target_folder_id);
-                                            let mut req = ehttp::Request::post(move_url, payload.into_bytes());
+                                            let payload =
+                                                format!(r#"{{"folder_id":{}}}"#, target_folder_id);
+                                            let req = ehttp::Request::post(
+                                                move_url,
+                                                payload.into_bytes(),
+                                            );
                                             ehttp::fetch(req, |_| {});
                                         }
                                     } else if let Node::Directory(ref d) = source {
                                         let update_url = format!("{}/folders/{}", url, d.id);
-                                        let payload = format!(r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#, d.name, target_folder_id);
-                                        let mut req = ehttp::Request::post(update_url, payload.into_bytes());
+                                        let payload = format!(
+                                            r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#,
+                                            d.name, target_folder_id
+                                        );
+                                        let req =
+                                            ehttp::Request::post(update_url, payload.into_bytes());
                                         ehttp::fetch(req, |_| {});
                                     }
-                                    
-                                    let _ = state.tree.insert(dnd.target, dnd.position.clone(), source);
+
+                                    let _ = state.tree.insert(dnd.target, dnd.position, source);
                                 }
                             }
                         }
@@ -345,9 +413,13 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                             for &id in &activate.selected {
                                 fn find_doc(node: &Node, target: usize) -> Option<(usize, String)> {
                                     match node {
-                                        Node::File(f) if f.id == target => f.document_id.map(|did| (did, f.name.clone())),
-                                        Node::Directory(d) => d.children.iter().find_map(|c| find_doc(c, target)),
-                                        _ => None
+                                        Node::File(f) if f.id == target => {
+                                            f.document_id.map(|did| (did, f.name.clone()))
+                                        }
+                                        Node::Directory(d) => {
+                                            d.children.iter().find_map(|c| find_doc(c, target))
+                                        }
+                                        _ => None,
                                     }
                                 }
                                 if let Some((doc_id, name)) = find_doc(&state.tree, id) {
@@ -359,7 +431,7 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                     }
                 }
                 open_documents.extend(docs_to_open);
-                
+
                 for action in context_menu_actions {
                     match action {
                         ContextMenuActions::Delete(id) => {
@@ -389,7 +461,7 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
         let mut is_open = true;
         let mut close_requested = false;
         let mut submitted = false;
-        
+
         let title = match modal.action {
             ModalAction::AddFile(..) => "New File Name",
             ModalAction::AddDir(..) => "New Directory Name",
@@ -476,20 +548,33 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                         state.next_id += 1;
                         let _ = state.tree.insert(parent_id, position, dir);
                         state.tree_view_state.set_selected(vec![id]);
-                        
+
                         // Fire API request
-                        let real_parent_id = if parent_id == 0 { None } else { Some(parent_id as i32) };
-                        let payload = format!(r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#, name, match real_parent_id { Some(pid) => pid.to_string(), None => "null".to_string() });
+                        let real_parent_id = if parent_id == 0 {
+                            None
+                        } else {
+                            Some(parent_id as i32)
+                        };
+                        let payload = format!(
+                            r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#,
+                            name,
+                            match real_parent_id {
+                                Some(pid) => pid.to_string(),
+                                None => "null".to_string(),
+                            }
+                        );
                         let mut url = api_url.to_string();
-                        if url.ends_with('/') { url.pop(); }
+                        if url.ends_with('/') {
+                            url.pop();
+                        }
                         url.push_str("/folders");
-                        
+
                         let request = ehttp::Request::post(url, payload.into_bytes());
                         let ctx_clone = ctx.clone();
                         ehttp::fetch(request, move |_| {
                             ctx_clone.request_repaint();
                         });
-                        
+
                         state.modal_state = None;
                     } else {
                         submitted = false; // keep open
@@ -497,7 +582,7 @@ pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &m
                 }
             }
         }
-        
+
         if (!is_open || close_requested) && !submitted {
             state.modal_state = None;
         }

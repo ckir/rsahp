@@ -1,6 +1,6 @@
 {
   "api_url": "http://127.0.0.1:4002/api/documents",
   "use_gpu": false,
-  "database_url": "sqlite://rsahp.db?mode=rwc",
+  "database_url": "sqlite://../rsahp.db?mode=rwc",
   "port": 4002
 }

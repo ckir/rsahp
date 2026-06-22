@@ -6,7 +6,9 @@ async fn test_create_and_move_folder() {
     let ctx = common::TestContext::new().await;
 
     // Create root folder
-    let res = ctx.server.post("/api/documents/folders")
+    let res = ctx
+        .server
+        .post("/api/documents/folders")
         .json(&json!({
             "name": "Root Folder",
             "owner_id": 1
@@ -17,7 +19,9 @@ async fn test_create_and_move_folder() {
     let root_id = root_folder["id"].as_i64().unwrap();
 
     // Create child folder
-    let res2 = ctx.server.post("/api/documents/folders")
+    let res2 = ctx
+        .server
+        .post("/api/documents/folders")
         .json(&json!({
             "name": "Child Folder",
             "owner_id": 1,
@@ -32,15 +36,20 @@ async fn test_create_and_move_folder() {
     let res_tree = ctx.server.get("/api/documents/tree").await;
     res_tree.assert_status_ok();
     let tree = res_tree.json::<serde_json::Value>();
-    
+
     // In our tree structure, the flat folders list should have the child folder with parent_id
     let folders = tree["folders"].as_array().unwrap();
-    let child_node = folders.iter().find(|f| f["id"].as_i64().unwrap() == child_id).unwrap();
-    
+    let child_node = folders
+        .iter()
+        .find(|f| f["id"].as_i64().unwrap() == child_id)
+        .unwrap();
+
     assert_eq!(child_node["parent_folder_id"].as_i64().unwrap(), root_id);
 
     // Test moving folder out to root
-    let res_move = ctx.server.post(&format!("/api/documents/folders/{}", child_id))
+    let res_move = ctx
+        .server
+        .post(&format!("/api/documents/folders/{}", child_id))
         .json(&json!({
             "name": "Child Folder",
             "owner_id": 1,
@@ -53,9 +62,15 @@ async fn test_create_and_move_folder() {
     let res_tree2 = ctx.server.get("/api/documents/tree").await;
     let tree2 = res_tree2.json::<serde_json::Value>();
     let folders2 = tree2["folders"].as_array().unwrap();
-    let r1 = folders2.iter().find(|f| f["id"].as_i64().unwrap() == root_id).unwrap();
-    let c1 = folders2.iter().find(|f| f["id"].as_i64().unwrap() == child_id).unwrap();
-    
+    let r1 = folders2
+        .iter()
+        .find(|f| f["id"].as_i64().unwrap() == root_id)
+        .unwrap();
+    let c1 = folders2
+        .iter()
+        .find(|f| f["id"].as_i64().unwrap() == child_id)
+        .unwrap();
+
     assert!(r1["parent_folder_id"].is_null());
     assert!(c1["parent_folder_id"].is_null());
 }

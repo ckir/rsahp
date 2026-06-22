@@ -1,8 +1,6 @@
-use axum::{routing::get, Router};
-use sea_orm::{ConnectionTrait, Database, DbErr, Schema};
-use std::net::SocketAddr;
+use sea_orm::{Database, DbErr};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 use backend::{config, create_router, setup_schema};
 
@@ -10,7 +8,9 @@ use backend::{config, create_router, setup_schema};
 async fn main() -> Result<(), DbErr> {
     let config = config::AppConfig::load();
     let port = config.port.unwrap_or(3001);
-    let db_url = config.database_url.unwrap_or_else(|| "sqlite://rsahp.db?mode=rwc".to_string());
+    let db_url = config
+        .database_url
+        .unwrap_or_else(|| "sqlite://rsahp.db?mode=rwc".to_string());
 
     // Note on "rotational log files 10mb/date":
     // tracing_appender natively supports date-based rotation (Rotation::DAILY).
@@ -40,4 +40,3 @@ async fn main() -> Result<(), DbErr> {
 
     Ok(())
 }
-

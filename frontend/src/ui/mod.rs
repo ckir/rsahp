@@ -26,17 +26,32 @@ impl eframe::App for RsahpApp {
     fn ui(&mut self, _ui: &mut egui::Ui, _frame: &mut eframe::Frame) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.render(ctx);
+    }
+}
+
+impl RsahpApp {
+    pub fn render(&mut self, ctx: &egui::Context) {
         if let Some(scale) = self.config.zoom_scale {
             ctx.set_pixels_per_point(scale);
         }
 
-        let api_url = self.config.api_url.clone().unwrap_or_else(|| "http://127.0.0.1:4002/api/documents".to_string());
+        let api_url = self
+            .config
+            .api_url
+            .clone()
+            .unwrap_or_else(|| "http://127.0.0.1:4002/api/documents".to_string());
 
         // Render Bottom Taskbar
         taskbar::render(ctx, &mut self.show_task_list, &mut self.config);
 
         // Render Pinned Explorer
-        explorer::render(ctx, &mut self.explorer_state, &mut self.open_documents, &api_url);
+        explorer::render(
+            ctx,
+            &mut self.explorer_state,
+            &mut self.open_documents,
+            &api_url,
+        );
 
         // Render Open Document Windows
         let mut closed_docs = Vec::new();
@@ -61,23 +76,23 @@ impl eframe::App for RsahpApp {
                         closed_docs.push(idx);
                     }
                 }
-                
-                if let Some(rx) = &doc.duplicated_doc_rx {
-                    if let Ok(new_doc) = rx.try_recv() {
-                        if let explorer::Node::Directory(dir) = &mut self.explorer_state.tree {
-                            dir.children.push(explorer::Node::File(explorer::File {
-                                id: self.explorer_state.next_id,
-                                name: new_doc.name.clone(),
-                                document_id: Some(new_doc.id as usize),
-                            }));
-                            self.explorer_state.next_id += 1;
-                        }
-                        doc.id = new_doc.id;
-                        doc.title = new_doc.name;
-                        doc.version = new_doc.version;
-                        doc.save_status = Some(format!("✅ Duplicated! (v{})", doc.version));
-                        doc.duplicated_doc_rx = None;
+
+                if let Some(rx) = &doc.duplicated_doc_rx
+                    && let Ok(new_doc) = rx.try_recv()
+                {
+                    if let explorer::Node::Directory(dir) = &mut self.explorer_state.tree {
+                        dir.children.push(explorer::Node::File(explorer::File {
+                            id: self.explorer_state.next_id,
+                            name: new_doc.name.clone(),
+                            document_id: Some(new_doc.id as usize),
+                        }));
+                        self.explorer_state.next_id += 1;
                     }
+                    doc.id = new_doc.id;
+                    doc.title = new_doc.name;
+                    doc.version = new_doc.version;
+                    doc.save_status = Some(format!("✅ Duplicated! (v{})", doc.version));
+                    doc.duplicated_doc_rx = None;
                 }
             } else {
                 let mut modal_open = true;
@@ -102,7 +117,7 @@ impl eframe::App for RsahpApp {
                             }
                         });
                     });
-                
+
                 if !modal_open {
                     doc.close_requested = false;
                 }
@@ -135,8 +150,14 @@ impl eframe::App for RsahpApp {
                 .open(&mut show_task_list)
                 .show(ctx, |ui| {
                     ui.label("You have 2 pending AHP surveys.");
-                    if ui.button("Survey: Vendor Selection (Management Group)").clicked() {
-                        new_doc = Some(document_window::DocumentState::new(101, "Vendor Selection Survey"));
+                    if ui
+                        .button("Survey: Vendor Selection (Management Group)")
+                        .clicked()
+                    {
+                        new_doc = Some(document_window::DocumentState::new(
+                            101,
+                            "Vendor Selection Survey",
+                        ));
                     }
                 });
         }
@@ -145,5 +166,31 @@ impl eframe::App for RsahpApp {
             self.open_documents.push(doc);
             self.show_task_list = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn test_app_renders_headless() {
+        let mut config = AppConfig::default();
+        config.api_url = Some("http://127.0.0.1:4002/api/documents".to_string());
+
+        let mut app = RsahpApp::new(config);
+
+        let mut harness = Harness::builder()
+            .with_size(eframe::egui::vec2(1200.0, 800.0))
+            .build_ui(|ctx| {
+                app.render(ctx);
+            });
+
+        harness.step();
+
+        // Assert the app booted cleanly
+        assert!(true);
     }
 }

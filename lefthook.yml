@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      run: cargo fmt --all -- --check
+    clippy:
+      run: cargo clippy -- -D warnings
+    test:
+      run: cargo test --lib
+
+pre-push:
+  commands:
+    verify:
+      run: pwsh ./verify.ps1

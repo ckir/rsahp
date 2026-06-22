@@ -24,14 +24,14 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn load() -> Self {
         let cli = CliArgs::parse();
-        
+
         let mut config = AppConfig::default();
-        
+
         let config_path = cli.config.unwrap_or_else(|| "config.json".to_string());
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            if let Ok(parsed) = serde_json::from_str::<AppConfig>(&content) {
-                config = parsed;
-            }
+        if let Ok(content) = fs::read_to_string(&config_path)
+            && let Ok(parsed) = serde_json::from_str::<AppConfig>(&content)
+        {
+            config = parsed;
         }
 
         if let Some(db) = cli.database_url {
