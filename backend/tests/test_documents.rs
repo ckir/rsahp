@@ -5,13 +5,39 @@ use serde_json::json;
 async fn test_create_and_move_document() {
     let ctx = common::TestContext::new().await;
 
+    // Register and login to get a token
+    let _ = ctx
+        .server
+        .post("/api/auth/register")
+        .json(&json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .await;
+
+    let res_login = ctx
+        .server
+        .post("/api/auth/login")
+        .json(&json!({
+            "email": "test@example.com",
+            "password": "password123"
+        }))
+        .await;
+
+    res_login.assert_status_ok();
+    let token = res_login.json::<serde_json::Value>()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
     // Create a folder
     let res_folder = ctx
         .server
         .post("/api/documents/folders")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "Project A",
-            "owner_id": 1
+            "owner_id": 2
         }))
         .await;
     res_folder.assert_status_ok();
@@ -23,9 +49,10 @@ async fn test_create_and_move_document() {
     let res_init = ctx
         .server
         .post("/api/documents")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "AHP Model",
-            "owner_id": 1,
+            "owner_id": 2,
             "aggregation_method": "AIJ",
             "folder_id": serde_json::Value::Null
         }))
@@ -35,7 +62,7 @@ async fn test_create_and_move_document() {
     let doc_id = doc_init["id"].as_i64().unwrap();
 
     // Now save full document
-    let mut export_doc = json!({
+    let export_doc = json!({
         "document": doc_init,
         "nodes": [
             {
@@ -52,6 +79,7 @@ async fn test_create_and_move_document() {
     let res_doc = ctx
         .server
         .post(&format!("/api/documents/{}/full", doc_id))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&export_doc)
         .await;
     res_doc.assert_status_ok();
@@ -61,6 +89,7 @@ async fn test_create_and_move_document() {
     let res_move = ctx
         .server
         .post(&format!("/api/documents/{}/move", doc_id))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "folder_id": folder_id
         }))
@@ -68,7 +97,11 @@ async fn test_create_and_move_document() {
     res_move.assert_status_ok();
 
     // Verify it moved in the tree
-    let res_tree = ctx.server.get("/api/documents/tree").await;
+    let res_tree = ctx
+        .server
+        .get("/api/documents/tree")
+        .add_header("Authorization", format!("Bearer {}", token))
+        .await;
     res_tree.assert_status_ok();
     let tree = res_tree.json::<serde_json::Value>();
 

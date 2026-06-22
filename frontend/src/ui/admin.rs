@@ -1,28 +1,32 @@
 use eframe::egui;
-use serde::{Deserialize, Serialize};
-use egui_ltreeview::{Action, DirPosition, NodeBuilder, TreeView, TreeViewState};
 use egui_extras::{Column, TableBuilder};
+use egui_ltreeview::{Action, DirPosition, NodeBuilder, TreeView, TreeViewState};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
+/// Action to take when the modal is closed.
 pub enum ModalAction {
     AddGroup(Option<i32>, DirPosition<i32>),
     ConfirmDelete(i32),
     AssignUser(i32), // pass user id
-    AddUser, // placeholder for add user
+    AddUser,         // placeholder for add user
     RenameGroup(i32),
 }
 
+/// State for the admin modal.
 pub struct ModalState {
     pub action: ModalAction,
     pub input_name: String,
     pub selected_groups: std::collections::HashSet<i32>,
 }
 
+/// UI state for the administration panel.
 pub struct AdminState {
     pub is_open: bool,
     pub users: Vec<UserAdminDto>,
     pub groups: Vec<GroupDto>,
-    pub fetch_rx: Option<std::sync::mpsc::Receiver<Result<(Vec<UserAdminDto>, Vec<GroupDto>), String>>>,
+    pub fetch_rx:
+        Option<std::sync::mpsc::Receiver<Result<(Vec<UserAdminDto>, Vec<GroupDto>), String>>>,
     pub action_rx: Option<std::sync::mpsc::Receiver<bool>>,
     pub tree_view_state: TreeViewState<i32>,
     pub modal_state: Option<ModalState>,
@@ -44,6 +48,7 @@ impl Default for AdminState {
     }
 }
 
+/// Data transfer object for admin user responses.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserAdminDto {
     pub id: i32,
@@ -53,6 +58,7 @@ pub struct UserAdminDto {
     pub groups: Vec<i32>,
 }
 
+/// Data transfer object for group responses.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GroupDto {
     pub id: Option<i32>,
@@ -128,6 +134,7 @@ struct SetGroupsDto {
     group_ids: Vec<i32>,
 }
 
+/// Renders the admin panel UI.
 pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_token: Option<&str>) {
     if !state.is_open {
         return;
@@ -138,11 +145,17 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
         let (tx, rx) = std::sync::mpsc::channel();
         state.fetch_rx = Some(rx);
 
-        let mut req1 = ehttp::Request::get(format!("{}/admin/users", api_url.replace("/documents", "")));
-        let mut req2 = ehttp::Request::get(format!("{}/admin/groups", api_url.replace("/documents", "")));
+        let mut req1 =
+            ehttp::Request::get(format!("{}/admin/users", api_url.replace("/documents", "")));
+        let mut req2 = ehttp::Request::get(format!(
+            "{}/admin/groups",
+            api_url.replace("/documents", "")
+        ));
         if let Some(token) = jwt_token {
-            req1.headers.insert("Authorization", &format!("Bearer {}", token));
-            req2.headers.insert("Authorization", &format!("Bearer {}", token));
+            req1.headers
+                .insert("Authorization", &format!("Bearer {}", token));
+            req2.headers
+                .insert("Authorization", &format!("Bearer {}", token));
         }
 
         let ctx_clone = ctx.clone();
@@ -162,7 +175,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                         Err("No body".to_string())
                     }
                 });
-                
+
                 let combined = match (u, g) {
                     (Ok(users), Ok(groups)) => Ok((users, groups)),
                     (Err(e), _) | (_, Err(e)) => Err(e),
@@ -214,7 +227,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                     ui: &mut egui::Ui,
                 ) {
                     let id = ui.make_persistent_id(format!("group_node_{}", node.id));
-                    
+
                     let mut header = egui::CollapsingHeader::new(&node.name)
                         .id_salt(id)
                         .default_open(true);
@@ -241,7 +254,10 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                             ui.label("Root:");
                             ui.separator();
                             if ui.button("new sub-group").clicked() {
-                                actions.push(ContextMenuActions::AddSubGroup(node.id, DirPosition::Last));
+                                actions.push(ContextMenuActions::AddSubGroup(
+                                    node.id,
+                                    DirPosition::Last,
+                                ));
                                 ui.close();
                             }
                         } else {
@@ -258,7 +274,10 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                             }
                             ui.separator();
                             if ui.button("new sub-group").clicked() {
-                                actions.push(ContextMenuActions::AddSubGroup(node.id, DirPosition::Last));
+                                actions.push(ContextMenuActions::AddSubGroup(
+                                    node.id,
+                                    DirPosition::Last,
+                                ));
                                 ui.close();
                             }
                         }
@@ -278,13 +297,25 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                         }
                         ContextMenuActions::AddSubGroup(parent_id, position) => {
                             state.modal_state = Some(ModalState {
-                                action: ModalAction::AddGroup(if parent_id == -1 { None } else { Some(parent_id) }, position),
+                                action: ModalAction::AddGroup(
+                                    if parent_id == -1 {
+                                        None
+                                    } else {
+                                        Some(parent_id)
+                                    },
+                                    position,
+                                ),
                                 input_name: String::new(),
                                 selected_groups: std::collections::HashSet::new(),
                             });
                         }
                         ContextMenuActions::Rename(id) => {
-                            let current_name = state.groups.iter().find(|g| g.id == Some(id)).map(|g| g.name.clone()).unwrap_or_default();
+                            let current_name = state
+                                .groups
+                                .iter()
+                                .find(|g| g.id == Some(id))
+                                .map(|g| g.name.clone())
+                                .unwrap_or_default();
                             state.modal_state = Some(ModalState {
                                 action: ModalAction::RenameGroup(id),
                                 input_name: current_name,
@@ -326,7 +357,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
         });
 
         ui.add_space(10.0);
-        
+
         let row_height = 24.0;
         let table = TableBuilder::new(ui)
             .striped(true)
@@ -337,65 +368,90 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
             .column(Column::initial(300.0).clip(true)) // Groups
             .column(Column::remainder()); // Status
 
-        table.header(20.0, |mut header| {
-            header.col(|_| {});
-            header.col(|ui| { ui.strong("Email"); });
-            header.col(|ui| { ui.strong("Groups"); });
-            header.col(|ui| { ui.strong("Status"); });
-        })
-        .body(|mut body| {
-            for (idx, u) in state.users.iter().enumerate() {
-                let is_selected = state.selected_user_id == Some(u.id);
-                body.row(row_height, |mut row| {
-                    row.col(|ui| { 
-                        let response = ui.selectable_label(is_selected, format!("{}.", idx + 1)); 
-                        if response.clicked() {
-                            state.selected_user_id = Some(u.id);
-                        }
-                    });
-                    row.col(|ui| { 
-                        let response = ui.selectable_label(is_selected, &u.email);
-                        if response.clicked() {
-                            state.selected_user_id = Some(u.id);
-                        }
-                    });
-                    row.col(|ui| {
-                        let mut group_names = Vec::new();
-                        for gid in &u.groups {
-                            if let Some(g) = state.groups.iter().find(|x| x.id == Some(*gid)) {
-                                group_names.push(g.name.clone());
-                            }
-                        }
-                        if u.is_admin {
-                            group_names.push("Admin".to_string());
-                        }
-                        ui.label(group_names.join(", "));
-                    });
-                    row.col(|ui| {
-                        ui.horizontal(|ui| {
-                            if u.is_deleted {
-                                ui.label(egui::RichText::new("Disabled").color(egui::Color32::RED));
-                            } else {
-                                ui.label(egui::RichText::new("Active").color(egui::Color32::DARK_GREEN));
-                            }
-                            if ui.button(if u.is_deleted { "Enable" } else { "Disable" }).clicked() && state.action_rx.is_none() {
-                                let mut req = ehttp::Request::put(format!("{}/admin/users/{}/block", api_url.replace("/documents", ""), u.id), vec![]);
-                                if let Some(token) = jwt_token {
-                                    req.headers.insert("Authorization", &format!("Bearer {}", token));
-                                }
-                                let (tx, rx) = std::sync::mpsc::channel();
-                                state.action_rx = Some(rx);
-                                let ctx_clone = ctx.clone();
-                                ehttp::fetch(req, move |_| {
-                                    let _ = tx.send(true);
-                                    ctx_clone.request_repaint();
-                                });
+        table
+            .header(20.0, |mut header| {
+                header.col(|_| {});
+                header.col(|ui| {
+                    ui.strong("Email");
+                });
+                header.col(|ui| {
+                    ui.strong("Groups");
+                });
+                header.col(|ui| {
+                    ui.strong("Status");
+                });
+            })
+            .body(|mut body| {
+                for (idx, u) in state.users.iter().enumerate() {
+                    let is_selected = state.selected_user_id == Some(u.id);
+                    body.row(row_height, |mut row| {
+                        row.col(|ui| {
+                            let response =
+                                ui.selectable_label(is_selected, format!("{}.", idx + 1));
+                            if response.clicked() {
+                                state.selected_user_id = Some(u.id);
                             }
                         });
+                        row.col(|ui| {
+                            let response = ui.selectable_label(is_selected, &u.email);
+                            if response.clicked() {
+                                state.selected_user_id = Some(u.id);
+                            }
+                        });
+                        row.col(|ui| {
+                            let mut group_names = Vec::new();
+                            for gid in &u.groups {
+                                if let Some(g) = state.groups.iter().find(|x| x.id == Some(*gid)) {
+                                    group_names.push(g.name.clone());
+                                }
+                            }
+                            if u.is_admin {
+                                group_names.push("Admin".to_string());
+                            }
+                            ui.label(group_names.join(", "));
+                        });
+                        row.col(|ui| {
+                            ui.horizontal(|ui| {
+                                if u.is_deleted {
+                                    ui.label(
+                                        egui::RichText::new("Disabled").color(egui::Color32::RED),
+                                    );
+                                } else {
+                                    ui.label(
+                                        egui::RichText::new("Active")
+                                            .color(egui::Color32::DARK_GREEN),
+                                    );
+                                }
+                                if ui
+                                    .button(if u.is_deleted { "Enable" } else { "Disable" })
+                                    .clicked()
+                                    && state.action_rx.is_none()
+                                {
+                                    let mut req = ehttp::Request::put(
+                                        format!(
+                                            "{}/admin/users/{}/block",
+                                            api_url.replace("/documents", ""),
+                                            u.id
+                                        ),
+                                        vec![],
+                                    );
+                                    if let Some(token) = jwt_token {
+                                        req.headers
+                                            .insert("Authorization", &format!("Bearer {}", token));
+                                    }
+                                    let (tx, rx) = std::sync::mpsc::channel();
+                                    state.action_rx = Some(rx);
+                                    let ctx_clone = ctx.clone();
+                                    ehttp::fetch(req, move |_| {
+                                        let _ = tx.send(true);
+                                        ctx_clone.request_repaint();
+                                    });
+                                }
+                            });
+                        });
                     });
-                });
-            }
-        });
+                }
+            });
     });
 
     if let Some(modal) = &mut state.modal_state {
@@ -474,20 +530,22 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                     }
                     ModalAction::AssignUser(_) => {
                         ui.label("Select groups for user:");
-                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                            for g in &state.groups {
-                                if let Some(gid) = g.id {
-                                    let mut is_checked = modal.selected_groups.contains(&gid);
-                                    if ui.checkbox(&mut is_checked, &g.name).changed() {
-                                        if is_checked {
-                                            modal.selected_groups.insert(gid);
-                                        } else {
-                                            modal.selected_groups.remove(&gid);
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                for g in &state.groups {
+                                    if let Some(gid) = g.id {
+                                        let mut is_checked = modal.selected_groups.contains(&gid);
+                                        if ui.checkbox(&mut is_checked, &g.name).changed() {
+                                            if is_checked {
+                                                modal.selected_groups.insert(gid);
+                                            } else {
+                                                modal.selected_groups.remove(&gid);
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        });
+                            });
                         ui.horizontal(|ui| {
                             if ui.button("Save").clicked() {
                                 submitted = true;
@@ -504,9 +562,14 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
             match modal.action.clone() {
                 ModalAction::ConfirmDelete(id) => {
                     if state.action_rx.is_none() {
-                        let mut req = ehttp::Request::delete(&format!("{}/admin/groups/{}", api_url.replace("/documents", ""), id));
+                        let mut req = ehttp::Request::delete(&format!(
+                            "{}/admin/groups/{}",
+                            api_url.replace("/documents", ""),
+                            id
+                        ));
                         if let Some(token) = jwt_token {
-                            req.headers.insert("Authorization", &format!("Bearer {}", token));
+                            req.headers
+                                .insert("Authorization", &format!("Bearer {}", token));
                         }
                         let (tx, rx) = std::sync::mpsc::channel();
                         state.action_rx = Some(rx);
@@ -526,11 +589,20 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                             parent_id,
                         };
                         if let Ok(body) = serde_json::to_vec(&payload) {
-                            let mut req = ehttp::Request::post(format!("{}/admin/groups", api_url.replace("/documents", "")), body);
+                            let mut req = ehttp::Request::post(
+                                format!("{}/admin/groups", api_url.replace("/documents", "")),
+                                body,
+                            );
                             if let Some(token) = jwt_token {
-                                req.headers.insert("Authorization", &format!("Bearer {}", token));
+                                req.headers
+                                    .insert("Authorization", &format!("Bearer {}", token));
                             }
-                            req.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                            req.headers
+                                .headers
+                                .retain(|(k, _)| k.to_lowercase() != "content-type");
+                            req.headers
+                                .headers
+                                .retain(|(k, _)| k.to_lowercase() != "content-type");
                             req.headers.insert("Content-Type", "application/json");
                             let (tx, rx) = std::sync::mpsc::channel();
                             state.action_rx = Some(rx);
@@ -554,11 +626,24 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 parent_id: g.parent_id,
                             };
                             if let Ok(body) = serde_json::to_vec(&payload) {
-                                let mut req = ehttp::Request::put(format!("{}/admin/groups/{}", api_url.replace("/documents", ""), id), body);
+                                let mut req = ehttp::Request::put(
+                                    format!(
+                                        "{}/admin/groups/{}",
+                                        api_url.replace("/documents", ""),
+                                        id
+                                    ),
+                                    body,
+                                );
                                 if let Some(token) = jwt_token {
-                                    req.headers.insert("Authorization", &format!("Bearer {}", token));
+                                    req.headers
+                                        .insert("Authorization", &format!("Bearer {}", token));
                                 }
-                                req.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                                req.headers
+                                    .headers
+                                    .retain(|(k, _)| k.to_lowercase() != "content-type");
+                                req.headers
+                                    .headers
+                                    .retain(|(k, _)| k.to_lowercase() != "content-type");
                                 req.headers.insert("Content-Type", "application/json");
                                 let (tx, rx) = std::sync::mpsc::channel();
                                 state.action_rx = Some(rx);
@@ -583,11 +668,24 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                             group_ids: modal.selected_groups.iter().cloned().collect(),
                         };
                         if let Ok(body) = serde_json::to_vec(&payload) {
-                            let mut req = ehttp::Request::post(format!("{}/admin/users/{}/groups", api_url.replace("/documents", ""), uid), body);
+                            let mut req = ehttp::Request::post(
+                                format!(
+                                    "{}/admin/users/{}/groups",
+                                    api_url.replace("/documents", ""),
+                                    uid
+                                ),
+                                body,
+                            );
                             if let Some(token) = jwt_token {
-                                req.headers.insert("Authorization", &format!("Bearer {}", token));
+                                req.headers
+                                    .insert("Authorization", &format!("Bearer {}", token));
                             }
-                            req.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                            req.headers
+                                .headers
+                                .retain(|(k, _)| k.to_lowercase() != "content-type");
+                            req.headers
+                                .headers
+                                .retain(|(k, _)| k.to_lowercase() != "content-type");
                             req.headers.insert("Content-Type", "application/json");
                             let (tx, rx) = std::sync::mpsc::channel();
                             state.action_rx = Some(rx);

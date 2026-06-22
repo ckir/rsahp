@@ -254,7 +254,12 @@ pub struct DocumentDto {
     pub aggregation_method: String,
 }
 
-pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Context, jwt_token: Option<&str>) {
+pub fn save_document(
+    state: &mut DocumentState,
+    api_url: &str,
+    ctx: &egui::Context,
+    jwt_token: Option<&str>,
+) {
     let mut nodes = Vec::new();
 
     // Add goal node manually as the root
@@ -332,12 +337,28 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
 
     if let Ok(body) = serde_json::to_vec(&export) {
         let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
-        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+        request
+            .headers
+            .headers
+            .retain(|(k, _)| k.to_lowercase() != "content-type");
+        request
+            .headers
+            .headers
+            .retain(|(k, _)| k.to_lowercase() != "content-type");
         request.headers.insert("Content-Type", "application/json");
         if let Some(token) = jwt_token {
-            request.headers.insert("Authorization", &format!("Bearer {}", token));
+            request
+                .headers
+                .insert("Authorization", &format!("Bearer {}", token));
         }
-        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+        request
+            .headers
+            .headers
+            .retain(|(k, _)| k.to_lowercase() != "content-type");
+        request
+            .headers
+            .headers
+            .retain(|(k, _)| k.to_lowercase() != "content-type");
         request.headers.insert("Content-Type", "application/json");
         let ctx_clone = ctx.clone();
         state.save_status = Some("Saving...".to_string());
@@ -371,14 +392,21 @@ pub fn save_document(state: &mut DocumentState, api_url: &str, ctx: &egui::Conte
     }
 }
 
-pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_token: Option<&str>) {
+pub fn render(
+    ui: &mut egui::Ui,
+    state: &mut DocumentState,
+    api_url: &str,
+    jwt_token: Option<&str>,
+) {
     if !state.is_loaded && state.load_rx.is_none() {
         let (tx, rx) = std::sync::mpsc::channel();
         state.load_rx = Some(rx);
         let url = format!("{}/{}/export", api_url, state.id);
         let mut request = ehttp::Request::get(url);
         if let Some(token) = jwt_token {
-            request.headers.insert("Authorization", &format!("Bearer {}", token));
+            request
+                .headers
+                .insert("Authorization", &format!("Bearer {}", token));
         }
         let ctx = ui.ctx().clone();
 
@@ -485,7 +513,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
             let url = format!("{}/{}/duplicate", api_url, state.id);
             let mut request = ehttp::Request::post(url, vec![]);
             if let Some(token) = jwt_token {
-                request.headers.insert("Authorization", &format!("Bearer {}", token));
+                request
+                    .headers
+                    .insert("Authorization", &format!("Bearer {}", token));
             }
             let ctx = ui.ctx().clone();
 
@@ -511,7 +541,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
             let url = format!("{}/{}/export", api_url, state.id);
             let mut request = ehttp::Request::get(url);
             if let Some(token) = jwt_token {
-                request.headers.insert("Authorization", &format!("Bearer {}", token));
+                request
+                    .headers
+                    .insert("Authorization", &format!("Bearer {}", token));
             }
             let ctx = ui.ctx().clone();
 
@@ -577,7 +609,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
             "Comparisons",
         );
         ui.selectable_value(&mut state.active_tab, DocumentTab::Results, "Results");
-        ui.selectable_value(&mut state.active_tab, DocumentTab::Assignments, "Assignments");
+        ui.selectable_value(
+            &mut state.active_tab,
+            DocumentTab::Assignments,
+            "Assignments",
+        );
     });
 
     ui.separator();
@@ -660,7 +696,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
                     ui.separator();
                     if node.id != 0 {
                         if ui.button("🗑 Delete").clicked() {
-                            actions.push(CriteriaModalAction::ConfirmDelete(node.id, node.node_type.clone()));
+                            actions.push(CriteriaModalAction::ConfirmDelete(
+                                node.id,
+                                node.node_type.clone(),
+                            ));
                             ui.close();
                         }
                         ui.separator();
@@ -702,16 +741,27 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
                     {
                         ui.horizontal(|ui| {
                             if ui.button("🗑️").clicked() {
-                                context_menu_actions
-                                    .push(CriteriaModalAction::ConfirmDelete(child.id, child.node_type.clone()));
+                                context_menu_actions.push(CriteriaModalAction::ConfirmDelete(
+                                    child.id,
+                                    child.node_type.clone(),
+                                ));
                             }
-                            let label_resp = ui.add(egui::Label::new(format!("• {}", child.name)).sense(egui::Sense::click()));
+                            let label_resp = ui.add(
+                                egui::Label::new(format!("• {}", child.name))
+                                    .sense(egui::Sense::click()),
+                            );
                             if label_resp.double_clicked() {
-                                context_menu_actions.push(CriteriaModalAction::Rename(child.id, child.node_type.clone()));
+                                context_menu_actions.push(CriteriaModalAction::Rename(
+                                    child.id,
+                                    child.node_type.clone(),
+                                ));
                             }
                             label_resp.context_menu(|ui| {
                                 if ui.button("✏ Rename").clicked() {
-                                    context_menu_actions.push(CriteriaModalAction::Rename(child.id, child.node_type.clone()));
+                                    context_menu_actions.push(CriteriaModalAction::Rename(
+                                        child.id,
+                                        child.node_type.clone(),
+                                    ));
                                     ui.close();
                                 }
                             });
@@ -719,8 +769,10 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui.button("✏️ Edit Cost").clicked() {
-                                        context_menu_actions
-                                            .push(CriteriaModalAction::EditCost(child.id, child.node_type.clone()));
+                                        context_menu_actions.push(CriteriaModalAction::EditCost(
+                                            child.id,
+                                            child.node_type.clone(),
+                                        ));
                                     }
                                     if let Some(cost) = child.cost {
                                         ui.label(format!("Cost: ${}", cost));
@@ -1340,7 +1392,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
                 let url = format!("{}/{}/assignments", api_url, state.id);
                 let mut request = ehttp::Request::get(url);
                 if let Some(token) = jwt_token {
-                    request.headers.insert("Authorization", &format!("Bearer {}", token));
+                    request
+                        .headers
+                        .insert("Authorization", &format!("Bearer {}", token));
                 }
                 let ctx_clone = ui.ctx().clone();
                 ehttp::fetch(request, move |result| {
@@ -1379,7 +1433,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
             if let Some(assignments) = &mut state.assignments {
                 ui.separator();
                 ui.heading("Users");
-                
+
                 let mut remove_user = None;
                 for uid in &assignments.user_ids {
                     ui.horizontal(|ui| {
@@ -1439,9 +1493,18 @@ pub fn render(ui: &mut egui::Ui, state: &mut DocumentState, api_url: &str, jwt_t
                     if let Ok(body) = serde_json::to_vec(assignments) {
                         let mut request = ehttp::Request::post(url, body);
                         if let Some(token) = jwt_token {
-                            request.headers.insert("Authorization", &format!("Bearer {}", token));
+                            request
+                                .headers
+                                .insert("Authorization", &format!("Bearer {}", token));
                         }
-                        request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                        request
+                            .headers
+                            .headers
+                            .retain(|(k, _)| k.to_lowercase() != "content-type");
+                        request
+                            .headers
+                            .headers
+                            .retain(|(k, _)| k.to_lowercase() != "content-type");
                         request.headers.insert("Content-Type", "application/json");
 
                         let (tx, rx) = std::sync::mpsc::channel();

@@ -10,11 +10,13 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{
-    comparison, document, folder, node, document_user_assignment, document_group_assignment, user_group_membership,
-};
 use crate::api_auth::Claims;
+use crate::entity::{
+    comparison, document, document_group_assignment, document_user_assignment, folder, node,
+    user_group_membership,
+};
 
+/// Returns the router for document-related endpoints.
 pub fn router() -> Router<DatabaseConnection> {
     Router::new()
         .route("/", get(list_documents).post(create_document))
@@ -49,6 +51,7 @@ pub fn router() -> Router<DatabaseConnection> {
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for document creation and updates.
 pub struct DocumentDto {
     pub name: String,
     pub owner_id: i32,
@@ -57,6 +60,7 @@ pub struct DocumentDto {
 }
 
 // 1. List Documents
+/// Retrieves a list of all documents accessible by the current user.
 pub async fn list_documents(
     claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -66,6 +70,7 @@ pub async fn list_documents(
 }
 
 // 2. Create Document
+/// Creates a new document.
 pub async fn create_document(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -105,6 +110,7 @@ async fn get_document(
 }
 
 // 4. Update Document
+/// Updates an existing document's properties.
 pub async fn update_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
@@ -144,11 +150,13 @@ async fn delete_document(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for document assignments (users and groups).
 pub struct DocumentAssignmentsDto {
     pub user_ids: Vec<i32>,
     pub group_ids: Vec<i32>,
 }
 
+/// Retrieves all user and group assignments for a specific document.
 pub async fn get_document_assignments(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -159,7 +167,7 @@ pub async fn get_document_assignments(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     let groups = document_group_assignment::Entity::find()
         .filter(document_group_assignment::Column::DocumentId.eq(id))
         .all(&db)
@@ -172,6 +180,7 @@ pub async fn get_document_assignments(
     }))
 }
 
+/// Replaces the user and group assignments for a specific document.
 pub async fn set_document_assignments(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -218,6 +227,7 @@ pub async fn set_document_assignments(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for node creation and updates.
 pub struct NodeDto {
     pub parent_node_id: Option<i32>,
     pub name: String,
@@ -296,6 +306,7 @@ async fn delete_node(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for comparison creations and updates.
 pub struct ComparisonDto {
     pub respondent_id: i32,
     pub parent_node_id: i32,
@@ -339,6 +350,7 @@ async fn create_comparison(
 
 // --- JSON Export/Import Data Structures ---
 #[derive(Serialize, Deserialize)]
+/// Data structure representing a fully exported document tree.
 pub struct ExportedDocument {
     pub document: document::Model,
     pub nodes: Vec<node::Model>,
@@ -610,6 +622,7 @@ async fn save_full_document(
     Ok(Json(updated_doc))
 }
 
+/// Duplicates a document, including its entire node and comparison structure.
 pub async fn duplicate_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
@@ -731,12 +744,14 @@ pub async fn duplicate_document(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for folder creation and updates.
 pub struct FolderDto {
     pub name: String,
     pub owner_id: i32,
     pub parent_folder_id: Option<i32>,
 }
 
+/// Retrieves a list of all folders.
 pub async fn list_folders(
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<folder::Model>>, (StatusCode, String)> {
@@ -747,6 +762,7 @@ pub async fn list_folders(
     Ok(Json(folders))
 }
 
+/// Creates a new folder.
 pub async fn create_folder(
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
@@ -768,6 +784,7 @@ pub async fn create_folder(
     Ok(Json(inserted))
 }
 
+/// Updates an existing folder.
 pub async fn update_folder(
     Path(id): Path<i32>,
     State(db): State<DatabaseConnection>,
@@ -793,6 +810,7 @@ pub async fn update_folder(
     Ok(Json(updated))
 }
 
+/// Deletes a folder by its ID.
 pub async fn delete_folder(
     Path(id): Path<i32>,
     State(db): State<DatabaseConnection>,
@@ -805,10 +823,12 @@ pub async fn delete_folder(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object for moving a document to a different folder.
 pub struct MoveDocumentDto {
     pub folder_id: Option<i32>,
 }
 
+/// Moves a document to a different folder.
 pub async fn move_document(
     Path(id): Path<i32>,
     State(db): State<DatabaseConnection>,
@@ -834,11 +854,13 @@ pub async fn move_document(
 }
 
 #[derive(Serialize, Deserialize)]
+/// Data transfer object containing the full folder and document tree.
 pub struct TreeDto {
     pub folders: Vec<folder::Model>,
     pub documents: Vec<document::Model>,
 }
 
+/// Retrieves the complete folder and document tree accessible by the user.
 pub async fn get_tree(
     claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -851,7 +873,10 @@ pub async fn get_tree(
     Ok(Json(TreeDto { folders, documents }))
 }
 
-async fn fetch_allowed_documents(db: &DatabaseConnection, user_id: i32) -> Result<Vec<document::Model>, (StatusCode, String)> {
+async fn fetch_allowed_documents(
+    db: &DatabaseConnection,
+    user_id: i32,
+) -> Result<Vec<document::Model>, (StatusCode, String)> {
     let owned_docs = document::Entity::find()
         .filter(document::Column::OwnerId.eq(user_id))
         .all(db)
@@ -871,7 +896,7 @@ async fn fetch_allowed_documents(db: &DatabaseConnection, user_id: i32) -> Resul
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let group_ids: Vec<i32> = memberships.into_iter().map(|m| m.group_id).collect();
-    
+
     let group_assignments = if !group_ids.is_empty() {
         document_group_assignment::Entity::find()
             .filter(document_group_assignment::Column::GroupId.is_in(group_ids))
@@ -885,7 +910,7 @@ async fn fetch_allowed_documents(db: &DatabaseConnection, user_id: i32) -> Resul
     let mut doc_ids: Vec<i32> = owned_docs.iter().map(|d| d.id).collect();
     doc_ids.extend(user_assignments.into_iter().map(|a| a.document_id));
     doc_ids.extend(group_assignments.into_iter().map(|a| a.document_id));
-    
+
     doc_ids.sort();
     doc_ids.dedup();
 

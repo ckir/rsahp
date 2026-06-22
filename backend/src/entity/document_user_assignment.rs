@@ -1,7 +1,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+/// Represents a user's assignment to a document.
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "document_user_assignment")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -10,6 +11,7 @@ pub struct Model {
     pub user_id: i32,
 }
 
+/// Defines the relationships for the DocumentUserAssignment entity.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(

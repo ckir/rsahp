@@ -1,7 +1,7 @@
 use eframe::egui;
 
-mod auth;
 mod admin;
+mod auth;
 mod document_window;
 mod explorer;
 mod taskbar;
@@ -72,7 +72,15 @@ impl RsahpApp {
         if self.auth_state.is_admin {
             // Admin only sees the admin window
             self.admin_state.is_open = true;
-            admin::render(ctx, &mut self.admin_state, self.config.api_url.as_deref().unwrap_or("http://localhost:8000/api"), self.auth_state.jwt_token.as_deref());
+            admin::render(
+                ctx,
+                &mut self.admin_state,
+                self.config
+                    .api_url
+                    .as_deref()
+                    .unwrap_or("http://localhost:8000/api"),
+                self.auth_state.jwt_token.as_deref(),
+            );
         } else {
             // Render User Dashboard
             user_dashboard::render(
@@ -98,7 +106,12 @@ impl RsahpApp {
                     .default_pos(ctx.screen_rect().center())
                     .pivot(egui::Align2::CENTER_CENTER)
                     .show(ctx, |ui| {
-                        document_window::render(ui, doc, &api_url, self.auth_state.jwt_token.as_deref());
+                        document_window::render(
+                            ui,
+                            doc,
+                            &api_url,
+                            self.auth_state.jwt_token.as_deref(),
+                        );
                     });
 
                 if !is_open {
@@ -155,7 +168,12 @@ impl RsahpApp {
                 }
                 match action {
                     Some("save") => {
-                        document_window::save_document(doc, &api_url, ctx, self.auth_state.jwt_token.as_deref());
+                        document_window::save_document(
+                            doc,
+                            &api_url,
+                            ctx,
+                            self.auth_state.jwt_token.as_deref(),
+                        );
                         closed_docs.push(idx);
                     }
                     Some("discard") => {

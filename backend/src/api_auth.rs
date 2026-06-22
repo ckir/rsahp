@@ -4,41 +4,44 @@ use axum::{
     http::{StatusCode, header::AUTHORIZATION},
     routing::post,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
-use serde::{Deserialize, Serialize};
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use bcrypt::{hash, verify};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use serde::{Deserialize, Serialize};
 
 use crate::entity::user;
 
 const JWT_SECRET: &[u8] = b"super-secret-key-change-in-production";
 
+/// JWT claims for authenticated users.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: i32, // user_id
     pub exp: usize,
 }
 
+/// Returns the router for authentication endpoints.
 pub fn router() -> Router<DatabaseConnection> {
     Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
 }
 
+/// Data transfer object for login and registration payloads.
 #[derive(Deserialize)]
 pub struct AuthPayload {
     pub email: String,
     pub password: String,
 }
 
+/// Data transfer object for authentication responses.
 #[derive(Serialize)]
 pub struct AuthResponse {
     pub token: String,
     pub user: UserDto,
 }
 
+/// Data transfer object for basic user info.
 #[derive(Serialize)]
 pub struct UserDto {
     pub id: i32,
@@ -46,6 +49,7 @@ pub struct UserDto {
     pub is_admin: bool,
 }
 
+/// Registers a new user.
 pub async fn register(
     State(db): State<DatabaseConnection>,
     Json(payload): Json<AuthPayload>,
@@ -85,8 +89,12 @@ pub async fn register(
         exp: (chrono::Utc::now() + chrono::Duration::days(30)).timestamp() as usize,
     };
 
-    let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(JWT_SECRET),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(AuthResponse {
         token,
@@ -98,6 +106,7 @@ pub async fn register(
     }))
 }
 
+/// Authenticates an existing user and returns a token.
 pub async fn login(
     State(db): State<DatabaseConnection>,
     Json(payload): Json<AuthPayload>,
@@ -133,8 +142,12 @@ pub async fn login(
         exp: (chrono::Utc::now() + chrono::Duration::days(30)).timestamp() as usize,
     };
 
-    let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(JWT_SECRET),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(AuthResponse {
         token,

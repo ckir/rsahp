@@ -251,7 +251,9 @@ pub fn render(
 
         let mut request = ehttp::Request::get(tree_url);
         if let Some(token) = jwt_token {
-            request.headers.insert("Authorization", &format!("Bearer {}", token));
+            request
+                .headers
+                .insert("Authorization", &format!("Bearer {}", token));
         }
         let ctx_clone = ctx.clone();
         ehttp::fetch(request, move |result| {
@@ -345,9 +347,18 @@ pub fn render(
                 let mut request =
                     ehttp::Request::post(format!("{}/import", api_url), json_text.into_bytes());
                 if let Some(token) = jwt_token {
-                    request.headers.insert("Authorization", &format!("Bearer {}", token));
+                    request
+                        .headers
+                        .insert("Authorization", &format!("Bearer {}", token));
                 }
-                request.headers.headers.retain(|(k, _)| k.to_lowercase() != "content-type");
+                request
+                    .headers
+                    .headers
+                    .retain(|(k, _)| k.to_lowercase() != "content-type");
+                request
+                    .headers
+                    .headers
+                    .retain(|(k, _)| k.to_lowercase() != "content-type");
                 request.headers.insert("Content-Type", "application/json");
                 let ctx_clone = ctx.clone();
                 state.import_status = Some("Importing...".to_string());
@@ -401,7 +412,10 @@ pub fn render(
                                                 payload.into_bytes(),
                                             );
                                             if let Some(token) = jwt_token {
-                                                request.headers.insert("Authorization", &format!("Bearer {}", token));
+                                                request.headers.insert(
+                                                    "Authorization",
+                                                    &format!("Bearer {}", token),
+                                                );
                                             }
                                             ehttp::fetch(request, |_| {});
                                         }
@@ -414,7 +428,10 @@ pub fn render(
                                         let mut req =
                                             ehttp::Request::post(update_url, payload.into_bytes());
                                         if let Some(token) = jwt_token {
-                                            req.headers.insert("Authorization", &format!("Bearer {}", token));
+                                            req.headers.insert(
+                                                "Authorization",
+                                                &format!("Bearer {}", token),
+                                            );
                                         }
                                         ehttp::fetch(req, |_| {});
                                     }
@@ -585,7 +602,9 @@ pub fn render(
 
                         let mut request = ehttp::Request::post(url, payload.into_bytes());
                         if let Some(token) = jwt_token {
-                            request.headers.insert("Authorization", &format!("Bearer {}", token));
+                            request
+                                .headers
+                                .insert("Authorization", &format!("Bearer {}", token));
                         }
                         let ctx_clone = ctx.clone();
                         ehttp::fetch(request, move |_| {

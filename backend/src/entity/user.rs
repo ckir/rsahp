@@ -40,5 +40,4 @@ impl Related<super::comparison::Entity> for Entity {
     }
 }
 
-
 impl ActiveModelBehavior for ActiveModel {}

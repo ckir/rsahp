@@ -84,7 +84,8 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
     let _ = db
         .execute(sea_orm::Statement::from_string(
             builder,
-            "ALTER TABLE \"user\" ADD COLUMN \"is_deleted\" BOOLEAN NOT NULL DEFAULT 0;".to_string(),
+            "ALTER TABLE \"user\" ADD COLUMN \"is_deleted\" BOOLEAN NOT NULL DEFAULT 0;"
+                .to_string(),
         ))
         .await;
 
@@ -101,7 +102,8 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
     let _ = db
         .execute(sea_orm::Statement::from_string(
             builder,
-            "ALTER TABLE \"comparison\" ADD COLUMN \"respondent_id\" INTEGER NOT NULL DEFAULT 1;".to_string(),
+            "ALTER TABLE \"comparison\" ADD COLUMN \"respondent_id\" INTEGER NOT NULL DEFAULT 1;"
+                .to_string(),
         ))
         .await;
 
@@ -114,7 +116,7 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
         ))
         .await;
 
-    // Use bcrypt or a dummy hash for now. The string 'admin' hashed will be needed later, 
+    // Use bcrypt or a dummy hash for now. The string 'admin' hashed will be needed later,
     // but for now let's just insert 'hash'.
     let _ = db.execute(sea_orm::Statement::from_string(
         builder,
@@ -141,9 +143,11 @@ pub fn create_router(db: sea_orm::DatabaseConnection) -> axum::Router {
         .nest("/api/admin", api_admin::router().with_state(db.clone()))
         .nest("/api/ahp", api::router())
         .nest("/api/documents", api_docs::router().with_state(db))
-        .layer(axum::middleware::from_fn(|req: axum::extract::Request, next: axum::middleware::Next| async move {
-            tracing::info!("-> {} {}", req.method(), req.uri());
-            tracing::info!("Headers: {:#?}", req.headers());
-            next.run(req).await
-        }))
+        .layer(axum::middleware::from_fn(
+            |req: axum::extract::Request, next: axum::middleware::Next| async move {
+                tracing::info!("-> {} {}", req.method(), req.uri());
+                tracing::info!("Headers: {:#?}", req.headers());
+                next.run(req).await
+            },
+        ))
 }

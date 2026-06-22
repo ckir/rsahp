@@ -5,13 +5,39 @@ use serde_json::json;
 async fn test_create_and_move_folder() {
     let ctx = common::TestContext::new().await;
 
+    // Register and login to get a token
+    let _ = ctx
+        .server
+        .post("/api/auth/register")
+        .json(&json!({
+            "email": "testfolder@example.com",
+            "password": "password123"
+        }))
+        .await;
+
+    let res_login = ctx
+        .server
+        .post("/api/auth/login")
+        .json(&json!({
+            "email": "testfolder@example.com",
+            "password": "password123"
+        }))
+        .await;
+
+    res_login.assert_status_ok();
+    let token = res_login.json::<serde_json::Value>()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
     // Create root folder
     let res = ctx
         .server
         .post("/api/documents/folders")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "Root Folder",
-            "owner_id": 1
+            "owner_id": 2
         }))
         .await;
     res.assert_status_ok();
@@ -22,9 +48,10 @@ async fn test_create_and_move_folder() {
     let res2 = ctx
         .server
         .post("/api/documents/folders")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "Child Folder",
-            "owner_id": 1,
+            "owner_id": 2,
             "parent_folder_id": root_id
         }))
         .await;
@@ -33,7 +60,11 @@ async fn test_create_and_move_folder() {
     let child_id = child_folder["id"].as_i64().unwrap();
 
     // Verify Tree
-    let res_tree = ctx.server.get("/api/documents/tree").await;
+    let res_tree = ctx
+        .server
+        .get("/api/documents/tree")
+        .add_header("Authorization", format!("Bearer {}", token))
+        .await;
     res_tree.assert_status_ok();
     let tree = res_tree.json::<serde_json::Value>();
 
@@ -50,16 +81,21 @@ async fn test_create_and_move_folder() {
     let res_move = ctx
         .server
         .post(&format!("/api/documents/folders/{}", child_id))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "Child Folder",
-            "owner_id": 1,
+            "owner_id": 2,
             "parent_folder_id": serde_json::Value::Null
         }))
         .await;
     res_move.assert_status_ok();
 
     // Verify both are now roots (parent_folder_id is null)
-    let res_tree2 = ctx.server.get("/api/documents/tree").await;
+    let res_tree2 = ctx
+        .server
+        .get("/api/documents/tree")
+        .add_header("Authorization", format!("Bearer {}", token))
+        .await;
     let tree2 = res_tree2.json::<serde_json::Value>();
     let folders2 = tree2["folders"].as_array().unwrap();
     let r1 = folders2

@@ -4,23 +4,26 @@ use axum::{
     http::StatusCode,
     routing::{get, put},
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{user, user_group, user_group_membership};
 use crate::api_auth::Claims;
+use crate::entity::{user, user_group, user_group_membership};
 
+/// Returns the router for administrative endpoints.
 pub fn router() -> Router<DatabaseConnection> {
     Router::new()
         .route("/users", get(list_users))
         .route("/users/{id}/block", put(toggle_block_user))
-        .route("/users/{id}/groups", get(get_user_groups).post(set_user_groups))
+        .route(
+            "/users/{id}/groups",
+            get(get_user_groups).post(set_user_groups),
+        )
         .route("/groups", get(list_groups).post(create_group))
         .route("/groups/{id}", put(update_group).delete(delete_group))
 }
 
+/// Retrieves a list of all users and their group memberships.
 pub async fn list_users(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -56,6 +59,7 @@ pub async fn list_users(
     Ok(Json(dtos))
 }
 
+/// Data transfer object for admin user information.
 #[derive(Serialize)]
 pub struct UserAdminDto {
     pub id: i32,
@@ -65,6 +69,7 @@ pub struct UserAdminDto {
     pub groups: Vec<i32>,
 }
 
+/// Toggles the blocked (deleted) status of a user.
 pub async fn toggle_block_user(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -94,12 +99,14 @@ pub async fn toggle_block_user(
     }))
 }
 
+/// Data transfer object for group creation and updates.
 #[derive(Serialize, Deserialize)]
 pub struct GroupDto {
     pub name: String,
     pub parent_id: Option<i32>,
 }
 
+/// Retrieves a list of all user groups.
 pub async fn list_groups(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -111,6 +118,7 @@ pub async fn list_groups(
     Ok(Json(groups))
 }
 
+/// Creates a new user group.
 pub async fn create_group(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -128,6 +136,7 @@ pub async fn create_group(
     Ok(Json(inserted))
 }
 
+/// Updates an existing user group.
 pub async fn update_group(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -140,7 +149,7 @@ pub async fn update_group(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Group not found".to_string()))?
         .into();
-        
+
     group.name = Set(payload.name);
     group.parent_id = Set(payload.parent_id);
 
@@ -151,6 +160,7 @@ pub async fn update_group(
     Ok(Json(updated))
 }
 
+/// Deletes a user group by its ID.
 pub async fn delete_group(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -163,6 +173,7 @@ pub async fn delete_group(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Retrieves the group memberships for a specific user.
 pub async fn get_user_groups(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
@@ -176,11 +187,13 @@ pub async fn get_user_groups(
     Ok(Json(memberships))
 }
 
+/// Data transfer object for assigning groups to a user.
 #[derive(Deserialize)]
 pub struct SetGroupsDto {
     pub group_ids: Vec<i32>,
 }
 
+/// Replaces the group memberships for a user.
 pub async fn set_user_groups(
     _claims: Claims,
     State(db): State<DatabaseConnection>,

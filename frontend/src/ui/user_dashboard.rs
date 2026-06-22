@@ -1,15 +1,17 @@
+use crate::ui::document_window::DocumentState;
 use eframe::egui;
 use serde::Deserialize;
 use std::sync::mpsc::{Receiver, channel};
-use crate::ui::document_window::DocumentState;
 
-#[derive(Deserialize)]
+/// Data transfer object representing the file system tree.
+#[derive(serde::Deserialize, Clone)]
 pub struct TreeDto {
     pub folders: Vec<FolderDto>,
     pub documents: Vec<DocumentDto>,
 }
 
-#[derive(Deserialize)]
+/// Data transfer object representing a folder.
+#[derive(serde::Deserialize, Clone, PartialEq)]
 pub struct FolderDto {
     pub id: i32,
     pub name: String,
@@ -17,7 +19,8 @@ pub struct FolderDto {
     pub parent_folder_id: Option<i32>,
 }
 
-#[derive(Deserialize)]
+/// Data transfer object representing a document.
+#[derive(serde::Deserialize, Clone, PartialEq)]
 pub struct DocumentDto {
     pub id: i32,
     pub name: String,
@@ -27,6 +30,7 @@ pub struct DocumentDto {
     pub folder_id: Option<i32>,
 }
 
+/// UI state for the user dashboard.
 pub struct UserDashboardState {
     pub is_open: bool,
     pub fetched_initial: bool,
@@ -49,6 +53,7 @@ impl Default for UserDashboardState {
     }
 }
 
+/// Renders the user dashboard, displaying a folder/document tree.
 pub fn render(
     ctx: &egui::Context,
     state: &mut UserDashboardState,
@@ -61,7 +66,11 @@ pub fn render(
         return;
     }
 
-    if !state.fetched_initial && state.tree_rx.is_none() && !state.fetch_in_progress && state.error_msg.is_none() {
+    if !state.fetched_initial
+        && state.tree_rx.is_none()
+        && !state.fetch_in_progress
+        && state.error_msg.is_none()
+    {
         let (tx, rx) = channel();
         state.tree_rx = Some(rx);
         state.fetch_in_progress = true;
@@ -69,7 +78,9 @@ pub fn render(
 
         let mut request = ehttp::Request::get(format!("{}/tree", api_url));
         if let Some(token) = jwt_token {
-            request.headers.insert("Authorization", &format!("Bearer {}", token));
+            request
+                .headers
+                .insert("Authorization", &format!("Bearer {}", token));
         }
 
         let ctx_clone = ctx.clone();
@@ -145,39 +156,49 @@ pub fn render(
             ui.vertical(|ui| {
                 ui.set_width(ui.available_width() / 2.0 - 10.0);
                 ui.heading("Documents to Evaluate");
-                ui.label(format!("Pending Evaluation Tasks ({})", evaluation_tasks.len()));
+                ui.label(format!(
+                    "Pending Evaluation Tasks ({})",
+                    evaluation_tasks.len()
+                ));
                 ui.separator();
-                
-                egui::ScrollArea::vertical().id_source("evaluations_scroll").show(ui, |ui| {
-                    if state.fetch_in_progress {
-                        ui.spinner();
-                    } else if evaluation_tasks.is_empty() {
-                        ui.label("No pending evaluations.");
-                    } else {
-                        for doc in evaluation_tasks {
-                            ui.group(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(format!("📋 {}", doc.name));
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        if ui.button("Evaluate").clicked() {
-                                            // Open document
-                                            let mut exists = false;
-                                            for open_doc in open_documents.iter_mut() {
-                                                if open_doc.id == doc.id {
-                                                    exists = true;
-                                                    break;
+
+                egui::ScrollArea::vertical()
+                    .id_source("evaluations_scroll")
+                    .show(ui, |ui| {
+                        if state.fetch_in_progress {
+                            ui.spinner();
+                        } else if evaluation_tasks.is_empty() {
+                            ui.label("No pending evaluations.");
+                        } else {
+                            for doc in evaluation_tasks {
+                                ui.group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(format!("📋 {}", doc.name));
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                if ui.button("Evaluate").clicked() {
+                                                    // Open document
+                                                    let mut exists = false;
+                                                    for open_doc in open_documents.iter_mut() {
+                                                        if open_doc.id == doc.id {
+                                                            exists = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if !exists {
+                                                        open_documents.push(DocumentState::new(
+                                                            doc.id, &doc.name,
+                                                        ));
+                                                    }
                                                 }
-                                            }
-                                            if !exists {
-                                                open_documents.push(DocumentState::new(doc.id, &doc.name));
-                                            }
-                                        }
+                                            },
+                                        );
                                     });
                                 });
-                            });
+                            }
                         }
-                    }
-                });
+                    });
             });
 
             ui.separator();
@@ -187,37 +208,44 @@ pub fn render(
                 ui.heading("My Documents");
                 ui.label(format!("Projects You Own ({})", my_documents.len()));
                 ui.separator();
-                
-                egui::ScrollArea::vertical().id_source("owned_projects_scroll").show(ui, |ui| {
-                    if state.fetch_in_progress {
-                        ui.spinner();
-                    } else if my_documents.is_empty() {
-                        ui.label("You do not own any projects.");
-                    } else {
-                        for doc in my_documents {
-                            ui.group(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(format!("📁 {}", doc.name));
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        if ui.button("View / Edit").clicked() {
-                                            // Open document
-                                            let mut exists = false;
-                                            for open_doc in open_documents.iter_mut() {
-                                                if open_doc.id == doc.id {
-                                                    exists = true;
-                                                    break;
+
+                egui::ScrollArea::vertical()
+                    .id_source("owned_projects_scroll")
+                    .show(ui, |ui| {
+                        if state.fetch_in_progress {
+                            ui.spinner();
+                        } else if my_documents.is_empty() {
+                            ui.label("You do not own any projects.");
+                        } else {
+                            for doc in my_documents {
+                                ui.group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(format!("📁 {}", doc.name));
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                if ui.button("View / Edit").clicked() {
+                                                    // Open document
+                                                    let mut exists = false;
+                                                    for open_doc in open_documents.iter_mut() {
+                                                        if open_doc.id == doc.id {
+                                                            exists = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if !exists {
+                                                        open_documents.push(DocumentState::new(
+                                                            doc.id, &doc.name,
+                                                        ));
+                                                    }
                                                 }
-                                            }
-                                            if !exists {
-                                                open_documents.push(DocumentState::new(doc.id, &doc.name));
-                                            }
-                                        }
+                                            },
+                                        );
                                     });
                                 });
-                            });
+                            }
                         }
-                    }
-                });
+                    });
             });
         });
     });
