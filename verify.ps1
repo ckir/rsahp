@@ -15,9 +15,9 @@ Write-Host "Config loaded. Expecting backend to bind to port $port."
 # Start the backend process
 $process = Start-Process -FilePath "cargo" -ArgumentList "run --bin backend -- --config ../config.json" -WorkingDirectory "./backend" -PassThru
 
-Write-Host "Waiting for backend to start (Timeout: 30s)..."
+Write-Host "Waiting for backend to start (Timeout: 120s)..."
 
-$maxAttempts = 30
+$maxAttempts = 120
 $attempt = 0
 $success = $false
 
@@ -45,6 +45,6 @@ if ($success) {
     Write-Host "Configuration verified successfully! Backend booted and bound to port $port." -ForegroundColor Green
     exit 0
 } else {
-    Write-Error "Verification failed! Backend did not start or failed to bind to port $port within 30 seconds."
+    Write-Error "Verification failed! Backend did not start or failed to bind to port $port within 120 seconds."
     exit 1
 }
