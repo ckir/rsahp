@@ -8,10 +8,21 @@ on:
 
 jobs:
   build_and_verify:
-    runs-on: windows-latest
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libwayland-dev libx11-xcb-dev libxcb-shape0-dev libxcb-xfixes0-dev
     
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
@@ -31,13 +42,14 @@ jobs:
       run: cargo build --release
 
     - name: Run Verification Script (Contract Test)
-      run: pwsh ./verify.ps1
+      shell: pwsh
+      run: ./verify.ps1
       
     - name: Upload Logs on Failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: failure-logs
+        name: failure-logs-${{ matrix.os }}
         path: |
           logs/
           rsahp.db
