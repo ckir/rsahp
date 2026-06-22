@@ -1,14 +1,18 @@
-// Golden Matrices for AHP Testing
+//! Golden data matrices for testing Analytical Hierarchy Process (AHP) calculations.
 
+/// Represents a golden standard matrix along with its expected AHP results.
 pub struct GoldenMatrix {
+    /// The square matrix representing pairwise comparisons.
     pub matrix: Vec<Vec<f64>>,
+    /// The expected priority weights derived from the matrix.
     pub expected_weights: Vec<f64>,
+    /// The expected consistency ratio (CR) of the matrix.
     pub expected_cr: f64,
 }
 
-// A 3x3 matrix that is perfectly consistent.
-// CR = 0.0
+/// Returns a perfectly consistent 3x3 matrix (CR = 0.0).
 pub fn perfectly_consistent_matrix() -> GoldenMatrix {
+    // Create and return the perfectly consistent matrix data
     GoldenMatrix {
         matrix: vec![
             vec![1.0, 2.0, 4.0],
@@ -20,9 +24,9 @@ pub fn perfectly_consistent_matrix() -> GoldenMatrix {
     }
 }
 
-// A 3x3 matrix with acceptable consistency.
-// CR is usually around 0.05
+/// Returns a 3x3 matrix with an acceptable level of consistency.
 pub fn acceptable_consistency_matrix() -> GoldenMatrix {
+    // Create and return a matrix that represents acceptable consistency
     GoldenMatrix {
         matrix: vec![
             vec![1.0, 2.0, 5.0],
@@ -34,9 +38,9 @@ pub fn acceptable_consistency_matrix() -> GoldenMatrix {
     }
 }
 
-// A 3x3 matrix with invalid consistency.
-// CR > 0.10
+/// Returns a 3x3 matrix that is completely inconsistent (CR > 0.10).
 pub fn invalid_consistency_matrix() -> GoldenMatrix {
+    // Create and return a matrix with invalid consistency to test failure cases
     GoldenMatrix {
         matrix: vec![
             vec![1.0, 9.0, 1.0 / 9.0],

@@ -1,3 +1,8 @@
+//! Document API endpoints.
+//!
+//! This module provides routes and handlers for managing documents,
+//! their node hierarchies, comparisons, folders, and export/import functionality.
+
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -18,6 +23,7 @@ use crate::entity::{
 
 /// Returns the router for document-related endpoints.
 pub fn router() -> Router<DatabaseConnection> {
+    // Configure all document routes
     Router::new()
         .route("/", get(list_documents).post(create_document))
         .route("/tree", get(get_tree))
@@ -50,35 +56,41 @@ pub fn router() -> Router<DatabaseConnection> {
         .route("/import", post(import_document))
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for document creation and updates.
+#[derive(Serialize, Deserialize)]
 pub struct DocumentDto {
+    /// Document name
     pub name: String,
+    /// ID of the user who owns this document
     pub owner_id: i32,
+    /// The aggregation method to be used
     pub aggregation_method: String,
+    /// Optional parent folder ID
     pub folder_id: Option<i32>,
 }
 
-// 1. List Documents
 /// Retrieves a list of all documents accessible by the current user.
 pub async fn list_documents(
     claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<document::Model>>, (StatusCode, String)> {
+    // Fetch documents using the claims' subject (user ID)
     let docs = fetch_allowed_documents(&db, claims.sub).await?;
+    // Return documents wrapped in JSON
     Ok(Json(docs))
 }
 
-// 2. Create Document
 /// Creates a new document.
 pub async fn create_document(
     _claims: Claims,
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Parse the JSON payload
     let payload: DocumentDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
+    // Prepare the active model for insertion
     let doc = document::ActiveModel {
         name: Set(payload.name),
         owner_id: Set(payload.owner_id),
@@ -89,33 +101,39 @@ pub async fn create_document(
         ..Default::default()
     };
 
+    // Insert the new document into the database
     let result = doc
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return the inserted model
     Ok(Json(result))
 }
 
-// 3. Get Document
-async fn get_document(
+/// Gets a specific document by its ID.
+pub async fn get_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Query the document by ID
     let doc = document::Entity::find_by_id(id)
         .one(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Document not found".to_string()))?;
+        
+    // Return the found document
     Ok(Json(doc))
 }
 
-// 4. Update Document
 /// Updates an existing document's properties.
 pub async fn update_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     Json(payload): Json<DocumentDto>,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Look up the document and convert to an ActiveModel for editing
     let mut doc: document::ActiveModel = document::Entity::find_by_id(id)
         .one(&db)
         .await
@@ -123,36 +141,47 @@ pub async fn update_document(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Document not found".to_string()))?
         .into();
 
+    // Update the relevant fields
     doc.name = Set(payload.name);
     doc.aggregation_method = Set(payload.aggregation_method);
     // Version is intentionally NOT incremented here; it is incremented only upon duplication.
 
+    // Commit changes to database
     let updated = doc
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return updated data
     Ok(Json(updated))
 }
 
-// 5. Delete Document
-async fn delete_document(
+/// Deletes a document by its ID.
+pub async fn delete_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<String, (StatusCode, String)> {
+    // Execute deletion based on ID
     let res = document::Entity::delete_by_id(id)
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Check if any row was affected to confirm deletion
     if res.rows_affected == 0 {
         return Err((StatusCode::NOT_FOUND, "Document not found".to_string()));
     }
+    
+    // Return success message
     Ok("Deleted".to_string())
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for document assignments (users and groups).
+#[derive(Serialize, Deserialize)]
 pub struct DocumentAssignmentsDto {
+    /// Users directly assigned to the document
     pub user_ids: Vec<i32>,
+    /// Groups assigned to the document
     pub group_ids: Vec<i32>,
 }
 
@@ -162,18 +191,21 @@ pub async fn get_document_assignments(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<DocumentAssignmentsDto>, (StatusCode, String)> {
+    // Fetch all user assignments for this document
     let users = document_user_assignment::Entity::find()
         .filter(document_user_assignment::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Fetch all group assignments for this document
     let groups = document_group_assignment::Entity::find()
         .filter(document_group_assignment::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Package IDs into a DTO and return
     Ok(Json(DocumentAssignmentsDto {
         user_ids: users.into_iter().map(|u| u.user_id).collect(),
         group_ids: groups.into_iter().map(|g| g.group_id).collect(),
@@ -187,18 +219,21 @@ pub async fn set_document_assignments(
     Path(id): Path<i32>,
     Json(payload): Json<DocumentAssignmentsDto>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    // Delete all existing user assignments
     let _ = document_user_assignment::Entity::delete_many()
         .filter(document_user_assignment::Column::DocumentId.eq(id))
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Delete all existing group assignments
     let _ = document_group_assignment::Entity::delete_many()
         .filter(document_group_assignment::Column::DocumentId.eq(id))
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Create new user assignments
     for uid in payload.user_ids {
         let membership = document_user_assignment::ActiveModel {
             document_id: Set(id),
@@ -211,6 +246,7 @@ pub async fn set_document_assignments(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
+    // Create new group assignments
     for gid in payload.group_ids {
         let membership = document_group_assignment::ActiveModel {
             document_id: Set(id),
@@ -223,35 +259,46 @@ pub async fn set_document_assignments(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
+    // Return success
     Ok(StatusCode::OK)
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for node creation and updates.
+#[derive(Serialize, Deserialize)]
 pub struct NodeDto {
+    /// Optional parent node ID for hierarchical nodes
     pub parent_node_id: Option<i32>,
+    /// Name of the node
     pub name: String,
-    pub node_type: String, // "Goal", "Criteria", "Alternative"
+    /// Node type classification: "Goal", "Criteria", "Alternative"
+    pub node_type: String, 
+    /// Cost parameter for AHP
     pub cost: Option<f64>,
 }
 
-async fn list_nodes(
+/// Retrieves all nodes associated with a document.
+pub async fn list_nodes(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<Vec<node::Model>>, (StatusCode, String)> {
+    // Filter nodes by the specific document ID
     let nodes = node::Entity::find()
         .filter(node::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return the list of nodes
     Ok(Json(nodes))
 }
 
-async fn create_node(
+/// Creates a new node within a document.
+pub async fn create_node(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     Json(payload): Json<NodeDto>,
 ) -> Result<Json<node::Model>, (StatusCode, String)> {
+    // Formulate a new ActiveModel for the node
     let new_node = node::ActiveModel {
         document_id: Set(id),
         parent_node_id: Set(payload.parent_node_id),
@@ -260,18 +307,24 @@ async fn create_node(
         cost: Set(payload.cost),
         ..Default::default()
     };
+    
+    // Insert node to DB
     let result = new_node
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return created node
     Ok(Json(result))
 }
 
-async fn update_node(
+/// Updates an existing node.
+pub async fn update_node(
     State(db): State<DatabaseConnection>,
     Path((_doc_id, node_id)): Path<(i32, i32)>,
     Json(payload): Json<NodeDto>,
 ) -> Result<Json<node::Model>, (StatusCode, String)> {
+    // Find the node by its primary ID
     let mut node_am: node::ActiveModel = node::Entity::find_by_id(node_id)
         .one(&db)
         .await
@@ -279,59 +332,80 @@ async fn update_node(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Node not found".to_string()))?
         .into();
 
+    // Reassign new data from payload
     node_am.name = Set(payload.name);
     node_am.parent_node_id = Set(payload.parent_node_id);
     node_am.node_type = Set(payload.node_type);
     node_am.cost = Set(payload.cost);
 
+    // Save changes
     let updated = node_am
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return updated node
     Ok(Json(updated))
 }
 
-async fn delete_node(
+/// Deletes a specific node from a document.
+pub async fn delete_node(
     State(db): State<DatabaseConnection>,
     Path((_id, node_id)): Path<(i32, i32)>,
 ) -> Result<String, (StatusCode, String)> {
+    // Delete the target node
     let res = node::Entity::delete_by_id(node_id)
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Validate if deletion actually found a row
     if res.rows_affected == 0 {
         return Err((StatusCode::NOT_FOUND, "Node not found".to_string()));
     }
+    
+    // Send confirmation
     Ok("Deleted".to_string())
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for comparison creations and updates.
+#[derive(Serialize, Deserialize)]
 pub struct ComparisonDto {
+    /// ID of the user giving the rating
     pub respondent_id: i32,
+    /// Parent node ID (context for comparison)
     pub parent_node_id: i32,
+    /// First node in comparison
     pub node_a_id: i32,
+    /// Second node in comparison
     pub node_b_id: i32,
+    /// The rating scale value
     pub saaty_value: f64,
 }
 
-async fn list_comparisons(
+/// Retrieves all comparisons within a given document.
+pub async fn list_comparisons(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<Vec<comparison::Model>>, (StatusCode, String)> {
+    // Filter comparisons associated with this document ID
     let comps = comparison::Entity::find()
         .filter(comparison::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return the retrieved list
     Ok(Json(comps))
 }
 
-async fn create_comparison(
+/// Creates a new comparison entry.
+pub async fn create_comparison(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     Json(payload): Json<ComparisonDto>,
 ) -> Result<Json<comparison::Model>, (StatusCode, String)> {
+    // Map DTO contents into an ActiveModel representation
     let new_comp = comparison::ActiveModel {
         document_id: Set(id),
         respondent_id: Set(payload.respondent_id),
@@ -341,45 +415,55 @@ async fn create_comparison(
         saaty_value: Set(payload.saaty_value),
         ..Default::default()
     };
+    
+    // Insert into DB
     let result = new_comp
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Return result
     Ok(Json(result))
 }
 
-// --- JSON Export/Import Data Structures ---
-#[derive(Serialize, Deserialize)]
 /// Data structure representing a fully exported document tree.
+#[derive(Serialize, Deserialize)]
 pub struct ExportedDocument {
+    /// Core document record
     pub document: document::Model,
+    /// Flat list of nodes comprising the structure
     pub nodes: Vec<node::Model>,
+    /// Set of evaluation comparisons
     pub comparisons: Vec<comparison::Model>,
 }
 
-// 6. Export Document to JSON
-async fn export_document(
+/// Exports a document to JSON including all nested nodes and comparisons.
+pub async fn export_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<ExportedDocument>, (StatusCode, String)> {
+    // Find the main document object
     let doc = document::Entity::find_by_id(id)
         .one(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Document not found".to_string()))?;
 
+    // Load nodes pertaining to it
     let nodes = node::Entity::find()
         .filter(node::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Load comparison data associated with it
     let comparisons = comparison::Entity::find()
         .filter(comparison::Column::DocumentId.eq(id))
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Collect into ExportedDocument and output
     Ok(Json(ExportedDocument {
         document: doc,
         nodes,
@@ -387,25 +471,33 @@ async fn export_document(
     }))
 }
 
-// 7. Import Document from JSON
-async fn import_document(
+/// Imports a full document payload, preserving hierarchical relationships.
+pub async fn import_document(
     State(db): State<DatabaseConnection>,
     Json(payload): Json<ExportedDocument>,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Start constructing the imported document
     let mut doc_am = payload.document.into_active_model();
+    // Do not preserve the primary key
     doc_am.id = sea_orm::ActiveValue::NotSet;
+    
+    // Write new document row
     let new_doc = doc_am
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Prepare mappings to adjust IDs referencing nodes
     let mut node_id_map = std::collections::HashMap::new();
     let mut nodes_to_insert = payload.nodes;
 
+    // We must resolve parent dependencies correctly without foreign key errors. 
+    // Loop until nodes list is empty.
     while !nodes_to_insert.is_empty() {
         let mut inserted_any = false;
         let mut remaining = Vec::new();
 
+        // Check which nodes have valid parent contexts mapped
         for node in nodes_to_insert {
             let old_id = node.id;
             let can_insert = match node.parent_node_id {
@@ -416,39 +508,54 @@ async fn import_document(
             if can_insert {
                 let pid_opt = node.parent_node_id;
                 let mut am = node.into_active_model();
+                
+                // Clear the original ID, set the new document ID reference
                 am.id = sea_orm::ActiveValue::NotSet;
                 am.document_id = Set(new_doc.id);
-                if let Some(pid) = pid_opt
-                    && let Some(&new_pid) = node_id_map.get(&pid)
-                {
-                    am.parent_node_id = Set(Some(new_pid));
+                
+                // Resolve any parent link to its new inserted ID
+                if let Some(pid) = pid_opt {
+                    if let Some(&new_pid) = node_id_map.get(&pid) {
+                        am.parent_node_id = Set(Some(new_pid));
+                    }
                 }
 
+                // Insert the node
                 let inserted_node = am
                     .insert(&db)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    
+                // Record the mapping
                 node_id_map.insert(old_id, inserted_node.id);
                 inserted_any = true;
             } else {
+                // If dependencies are missing, keep to try again
                 remaining.push(node);
             }
         }
 
+        // If cycle or broken references exist, halt import
         if !inserted_any {
             return Err((
                 StatusCode::BAD_REQUEST,
                 "Invalid node hierarchy in import".to_string(),
             ));
         }
+        
+        // Loop again with leftover
         nodes_to_insert = remaining;
     }
 
+    // Follow up inserting comparisons mapping references
     for comp in payload.comparisons {
         let mut am = comp.into_active_model();
+        
+        // Wipe original IDs and map to new document ID
         am.id = sea_orm::ActiveValue::NotSet;
         am.document_id = Set(new_doc.id);
 
+        // Resolve reference or fail if undefined
         if let Some(&new_pid) = node_id_map.get(am.parent_node_id.as_ref()) {
             am.parent_node_id = Set(new_pid);
         } else {
@@ -458,6 +565,7 @@ async fn import_document(
             ));
         }
 
+        // Resolve reference or fail if undefined
         if let Some(&new_aid) = node_id_map.get(am.node_a_id.as_ref()) {
             am.node_a_id = Set(new_aid);
         } else {
@@ -467,6 +575,7 @@ async fn import_document(
             ));
         }
 
+        // Resolve reference or fail if undefined
         if let Some(&new_bid) = node_id_map.get(am.node_b_id.as_ref()) {
             am.node_b_id = Set(new_bid);
         } else {
@@ -476,28 +585,33 @@ async fn import_document(
             ));
         }
 
+        // Apply inserts
         am.insert(&db)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
+    // Success response with the base document object
     Ok(Json(new_doc))
 }
 
-// 8. Save Full Document (Overwrites nodes and comparisons)
-async fn save_full_document(
+/// Saves full document data, overwriting all existing nodes and comparisons.
+pub async fn save_full_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Parse the full payload
     let payload: ExportedDocument = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
+    // Look for existing document record
     let doc_opt = document::Entity::find_by_id(id)
         .one(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Create an active model tracking updates or creation
     let mut doc: document::ActiveModel = if let Some(existing) = doc_opt.clone() {
         existing.into()
     } else {
@@ -511,10 +625,12 @@ async fn save_full_document(
         new_doc
     };
 
+    // Propagate fields
     doc.name = Set(payload.document.name);
     doc.aggregation_method = Set(payload.document.aggregation_method);
     doc.version = Set(payload.document.version);
 
+    // Apply DB update or insert if lacking
     let updated_doc = if doc_opt.is_some() {
         doc.update(&db)
             .await
@@ -525,26 +641,30 @@ async fn save_full_document(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     };
 
-    // Delete existing comparisons and nodes in correct order to respect foreign keys
+    // Delete existing comparisons to respect foreign key cascades on replacement
     let _ = comparison::Entity::delete_many()
         .filter(comparison::Column::DocumentId.eq(id))
         .exec(&db)
         .await;
+        
+    // Delete existing nodes
     let _ = node::Entity::delete_many()
         .filter(node::Column::DocumentId.eq(id))
         .exec(&db)
         .await;
 
-    // Insert new nodes
+    // Track ID translations
     let mut node_id_map = std::collections::HashMap::new();
     let mut nodes_to_insert = payload.nodes;
 
+    // Loop through nodes dynamically mapping tree logic
     while !nodes_to_insert.is_empty() {
         let mut inserted_any = false;
         let mut remaining = Vec::new();
 
         for node in nodes_to_insert {
             let old_id = node.id;
+            // A node is ready to insert if it's the root, or if its parent is already processed
             let can_insert = match node.parent_node_id {
                 Some(pid) => node_id_map.contains_key(&pid),
                 None => true,
@@ -555,16 +675,21 @@ async fn save_full_document(
                 let mut am = node.into_active_model();
                 am.id = sea_orm::ActiveValue::NotSet;
                 am.document_id = Set(id);
-                if let Some(pid) = pid_opt
-                    && let Some(&new_pid) = node_id_map.get(&pid)
-                {
-                    am.parent_node_id = Set(Some(new_pid));
+                
+                // Tie properly to inserted parent context
+                if let Some(pid) = pid_opt {
+                    if let Some(&new_pid) = node_id_map.get(&pid) {
+                        am.parent_node_id = Set(Some(new_pid));
+                    }
                 }
 
+                // Insert into DB
                 let inserted_node = am
                     .insert(&db)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    
+                // Record translation
                 node_id_map.insert(old_id, inserted_node.id);
                 inserted_any = true;
             } else {
@@ -572,6 +697,7 @@ async fn save_full_document(
             }
         }
 
+        // Protect from cyclic relations
         if !inserted_any {
             return Err((
                 StatusCode::BAD_REQUEST,
@@ -581,7 +707,7 @@ async fn save_full_document(
         nodes_to_insert = remaining;
     }
 
-    // Insert new comparisons
+    // Run over comparisons using constructed translations
     for comp in payload.comparisons {
         let mut am = comp.into_active_model();
         am.id = sea_orm::ActiveValue::NotSet;
@@ -619,6 +745,7 @@ async fn save_full_document(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
+    // Done replacing state
     Ok(Json(updated_doc))
 }
 
@@ -627,30 +754,34 @@ pub async fn duplicate_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Initiate transaction for data consistency
     let txn = db
         .begin()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 1. Fetch original document
+    // 1. Fetch original document inside transaction
     let orig_doc = document::Entity::find_by_id(id)
         .one(&txn)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Document not found".to_string()))?;
 
-    // 2. Create new document
+    // 2. Compute new version number
     let new_version = orig_doc.version + 1;
 
-    // Strip existing (vX) from the name if present, to avoid "MyDoc (v2) (v3)"
+    // 3. Strip existing (vX) from the name if present, to avoid nested version titles
     let mut base_name = orig_doc.name.clone();
-    if let Some(idx) = base_name.rfind(" (v")
-        && base_name.ends_with(')')
-    {
-        base_name.truncate(idx);
+    if let Some(idx) = base_name.rfind(" (v") {
+        if base_name.ends_with(')') {
+            base_name.truncate(idx);
+        }
     }
 
+    // Create the updated name with incremented version tracking
     let new_doc_name = format!("{} (v{})", base_name, new_version);
+    
+    // Construct new duplicate document entry
     let new_doc = document::ActiveModel {
         name: Set(new_doc_name),
         owner_id: Set(orig_doc.owner_id),
@@ -659,13 +790,15 @@ pub async fn duplicate_document(
         created_at: Set(chrono::Utc::now()),
         ..Default::default()
     };
+    
+    // Perform database insertion and track primary key
     let inserted_doc = new_doc
         .insert(&txn)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let new_doc_id = inserted_doc.id;
 
-    // 3. Map Nodes
+    // 4. Read original nodes collection
     let orig_nodes = node::Entity::find()
         .filter(node::Column::DocumentId.eq(id))
         .all(&txn)
@@ -674,6 +807,7 @@ pub async fn duplicate_document(
 
     let mut node_id_map = std::collections::HashMap::new();
 
+    // Iterate duplicating nodes but leaving parent IDs empty temporarily
     for n in &orig_nodes {
         let new_node = node::ActiveModel {
             document_id: Set(new_doc_id),
@@ -682,45 +816,56 @@ pub async fn duplicate_document(
             parent_node_id: Set(None), // We will fix parents in a second pass to avoid FK issues
             ..Default::default()
         };
+        // Commit initial row
         let inserted = new_node
             .insert(&txn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            
+        // Map old node ID to the new duplicate ID
         node_id_map.insert(n.id, inserted.id);
     }
 
-    // Second pass: update parent IDs
+    // 5. Second pass: update parent IDs to connect tree
     for n in &orig_nodes {
-        if let Some(old_parent) = n.parent_node_id
-            && let (Some(&new_id), Some(&new_parent)) =
+        if let Some(old_parent) = n.parent_node_id {
+            if let (Some(&new_id), Some(&new_parent)) =
                 (node_id_map.get(&n.id), node_id_map.get(&old_parent))
-        {
-            let mut update_node: node::ActiveModel = node::Entity::find_by_id(new_id)
-                .one(&txn)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
-            update_node.parent_node_id = Set(Some(new_parent));
-            update_node
-                .update(&txn)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            {
+                // Fetch the new node to modify it
+                let mut update_node: node::ActiveModel = node::Entity::find_by_id(new_id)
+                    .one(&txn)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .into();
+                
+                // Adjust parent binding
+                update_node.parent_node_id = Set(Some(new_parent));
+                
+                // Execute modification
+                update_node
+                    .update(&txn)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            }
         }
     }
 
-    // 4. Map Comparisons
+    // 6. Fetch original comparisons
     let orig_comps = comparison::Entity::find()
         .filter(comparison::Column::DocumentId.eq(id))
         .all(&txn)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Reconstruct valid comparison pointers relative to new node space
     for c in orig_comps {
         let new_parent_id = node_id_map.get(&c.parent_node_id).copied().unwrap_or(0);
         let new_node_a = node_id_map.get(&c.node_a_id).copied().unwrap_or(0);
         let new_node_b = node_id_map.get(&c.node_b_id).copied().unwrap_or(0);
 
+        // Fill out model struct
         let new_comp = comparison::ActiveModel {
             document_id: Set(new_doc_id),
             respondent_id: Set(c.respondent_id),
@@ -730,24 +875,31 @@ pub async fn duplicate_document(
             saaty_value: Set(c.saaty_value),
             ..Default::default()
         };
+        
+        // Finalise entry recording
         new_comp
             .insert(&txn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
+    // Close and apply transaction state updates
     txn.commit()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Respond back to caller with copied structure reference
     Ok(Json(inserted_doc))
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for folder creation and updates.
+#[derive(Serialize, Deserialize)]
 pub struct FolderDto {
+    /// Folder name
     pub name: String,
+    /// Identifier indicating owner context
     pub owner_id: i32,
+    /// ID pointing to nesting context (if this exists within another folder)
     pub parent_folder_id: Option<i32>,
 }
 
@@ -755,10 +907,13 @@ pub struct FolderDto {
 pub async fn list_folders(
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<folder::Model>>, (StatusCode, String)> {
+    // Run an unfiltered query returning all folder collections
     let folders = folder::Entity::find()
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Send standard JSON response
     Ok(Json(folders))
 }
 
@@ -767,9 +922,11 @@ pub async fn create_folder(
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<folder::Model>, (StatusCode, String)> {
+    // Load schema contents handling input errors
     let payload: FolderDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
+    // Create a new representation based on values provided
     let f = folder::ActiveModel {
         name: Set(payload.name),
         owner_id: Set(payload.owner_id),
@@ -777,6 +934,7 @@ pub async fn create_folder(
         ..Default::default()
     };
 
+    // Store in DB context mapping back to client
     let inserted = f
         .insert(&db)
         .await
@@ -790,9 +948,11 @@ pub async fn update_folder(
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<folder::Model>, (StatusCode, String)> {
+    // Resolve structure
     let payload: FolderDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
+    // Access specific target database item
     let mut f: folder::ActiveModel = folder::Entity::find_by_id(id)
         .one(&db)
         .await
@@ -800,13 +960,17 @@ pub async fn update_folder(
         .ok_or((StatusCode::NOT_FOUND, "Folder not found".to_string()))?
         .into();
 
+    // Adjust specific features based on payload
     f.name = Set(payload.name);
     f.parent_folder_id = Set(payload.parent_folder_id);
 
+    // Apply DB write saving change execution output
     let updated = f
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Send final entity
     Ok(Json(updated))
 }
 
@@ -815,16 +979,20 @@ pub async fn delete_folder(
     Path(id): Path<i32>,
     State(db): State<DatabaseConnection>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    // Delete entry discarding outcome except checking code logic validation
     let _ = folder::Entity::delete_by_id(id)
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Standard response returning no content upon execution
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object for moving a document to a different folder.
+#[derive(Serialize, Deserialize)]
 pub struct MoveDocumentDto {
+    /// Desired folder ID or None to move to root level
     pub folder_id: Option<i32>,
 }
 
@@ -834,9 +1002,11 @@ pub async fn move_document(
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
+    // Cast and parse target parameter
     let payload: MoveDocumentDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
+    // Check specific target
     let mut doc: document::ActiveModel = document::Entity::find_by_id(id)
         .one(&db)
         .await
@@ -844,19 +1014,25 @@ pub async fn move_document(
         .ok_or((StatusCode::NOT_FOUND, "Document not found".to_string()))?
         .into();
 
+    // Point field definition to intended placement reference
     doc.folder_id = Set(payload.folder_id);
 
+    // Lock update call to target storage
     let updated = doc
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Render feedback
     Ok(Json(updated))
 }
 
-#[derive(Serialize, Deserialize)]
 /// Data transfer object containing the full folder and document tree.
+#[derive(Serialize, Deserialize)]
 pub struct TreeDto {
+    /// Comprehensive set of registered folders
     pub folders: Vec<folder::Model>,
+    /// Available document listings
     pub documents: Vec<document::Model>,
 }
 
@@ -865,38 +1041,49 @@ pub async fn get_tree(
     claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<TreeDto>, (StatusCode, String)> {
+    // Retrieve root elements mapping structural elements
     let folders = folder::Entity::find()
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        
+    // Execute filter determining accessible user contents
     let documents = fetch_allowed_documents(&db, claims.sub).await?;
+    
+    // Serve DTO instance tying context sets together
     Ok(Json(TreeDto { folders, documents }))
 }
 
+/// Helper function to retrieve all documents a user has permission to view.
 async fn fetch_allowed_documents(
     db: &DatabaseConnection,
     user_id: i32,
 ) -> Result<Vec<document::Model>, (StatusCode, String)> {
+    // Collect direct document associations where they denote ownership
     let owned_docs = document::Entity::find()
         .filter(document::Column::OwnerId.eq(user_id))
         .all(db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Search permissions tied directly to individual user assignments
     let user_assignments = document_user_assignment::Entity::find()
         .filter(document_user_assignment::Column::UserId.eq(user_id))
         .all(db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Discover related structural contexts connected specifically through group bindings
     let memberships = user_group_membership::Entity::find()
         .filter(user_group_membership::Column::UserId.eq(user_id))
         .all(db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Remap membership references to exact context identifiers 
     let group_ids: Vec<i32> = memberships.into_iter().map(|m| m.group_id).collect();
 
+    // Map out assignments pointing specifically to the groups determined earlier
     let group_assignments = if !group_ids.is_empty() {
         document_group_assignment::Entity::find()
             .filter(document_group_assignment::Column::GroupId.is_in(group_ids))
@@ -907,22 +1094,31 @@ async fn fetch_allowed_documents(
         vec![]
     };
 
+    // Combine access listings together to define a complete accessible identity set
     let mut doc_ids: Vec<i32> = owned_docs.iter().map(|d| d.id).collect();
+    
+    // Add specifically bound context
     doc_ids.extend(user_assignments.into_iter().map(|a| a.document_id));
+    
+    // Incorporate group bound documents to accessible collection
     doc_ids.extend(group_assignments.into_iter().map(|a| a.document_id));
 
+    // Ensure all context IDs remain sequential and avoid duplications to preserve processing
     doc_ids.sort();
     doc_ids.dedup();
 
+    // End function fast indicating lacking matching output conditions entirely
     if doc_ids.is_empty() {
         return Ok(vec![]);
     }
 
+    // Access raw documents using aggregated allowed listings to gather resulting array mappings
     let docs = document::Entity::find()
         .filter(document::Column::Id.is_in(doc_ids))
         .all(db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Conclude internal filtering execution responding accessible document output representations 
     Ok(docs)
 }

@@ -1,3 +1,7 @@
+//! Main library module for the application.
+//! This module exports various submodules for APIs, configuration, and entities.
+//! It also provides functions for initializing the database schema and routing.
+
 pub mod ahp;
 pub mod api;
 pub mod api_admin;
@@ -8,10 +12,14 @@ pub mod entity;
 
 use sea_orm::{ConnectionTrait, DbErr, Schema};
 
+/// Sets up the initial database schema and applies any required migrations.
 pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
+    // Get the database backend specific builder
     let builder = db.get_database_backend();
+    // Initialize the schema builder
     let schema = Schema::new(builder);
 
+    // Create a list of statements for creating tables
     let stmts = vec![
         builder.build(
             schema
@@ -60,6 +68,7 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
         ),
     ];
 
+    // Execute each statement to create tables if they do not exist
     for stmt in stmts {
         db.execute(stmt).await?;
     }
@@ -129,24 +138,36 @@ pub async fn setup_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr>
         "INSERT OR IGNORE INTO \"user_group_membership\" (id, user_id, group_id) VALUES (1, 1, 1);".to_string()
     )).await;
 
+    // Log the successful initialization
     tracing::info!("Database schema initialized.");
     Ok(())
 }
 
+/// Creates and configures the main Axum application router.
 pub fn create_router(db: sea_orm::DatabaseConnection) -> axum::Router {
+    // Build and return the Router instance
     axum::Router::new()
+        // Define root route
         .route(
             "/",
             axum::routing::get(|| async { "rsahp backend running" }),
         )
+        // Nest authentication endpoints
         .nest("/api/auth", api_auth::router().with_state(db.clone()))
+        // Nest admin endpoints
         .nest("/api/admin", api_admin::router().with_state(db.clone()))
+        // Nest AHP calculation endpoints
         .nest("/api/ahp", api::router())
+        // Nest document management endpoints
         .nest("/api/documents", api_docs::router().with_state(db))
+        // Apply middleware for request logging
         .layer(axum::middleware::from_fn(
             |req: axum::extract::Request, next: axum::middleware::Next| async move {
+                // Log method and URI
                 tracing::info!("-> {} {}", req.method(), req.uri());
+                // Log request headers
                 tracing::info!("Headers: {:#?}", req.headers());
+                // Continue to the next handler
                 next.run(req).await
             },
         ))
