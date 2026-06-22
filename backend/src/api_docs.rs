@@ -514,10 +514,10 @@ pub async fn import_document(
                 am.document_id = Set(new_doc.id);
                 
                 // Resolve any parent link to its new inserted ID
-                if let Some(pid) = pid_opt {
-                    if let Some(&new_pid) = node_id_map.get(&pid) {
-                        am.parent_node_id = Set(Some(new_pid));
-                    }
+                if let Some(pid) = pid_opt
+                    && let Some(&new_pid) = node_id_map.get(&pid)
+                {
+                    am.parent_node_id = Set(Some(new_pid));
                 }
 
                 // Insert the node
@@ -677,10 +677,10 @@ pub async fn save_full_document(
                 am.document_id = Set(id);
                 
                 // Tie properly to inserted parent context
-                if let Some(pid) = pid_opt {
-                    if let Some(&new_pid) = node_id_map.get(&pid) {
-                        am.parent_node_id = Set(Some(new_pid));
-                    }
+                if let Some(pid) = pid_opt
+                    && let Some(&new_pid) = node_id_map.get(&pid)
+                {
+                    am.parent_node_id = Set(Some(new_pid));
                 }
 
                 // Insert into DB
@@ -772,10 +772,10 @@ pub async fn duplicate_document(
 
     // 3. Strip existing (vX) from the name if present, to avoid nested version titles
     let mut base_name = orig_doc.name.clone();
-    if let Some(idx) = base_name.rfind(" (v") {
-        if base_name.ends_with(')') {
-            base_name.truncate(idx);
-        }
+    if let Some(idx) = base_name.rfind(" (v")
+        && base_name.ends_with(')')
+    {
+        base_name.truncate(idx);
     }
 
     // Create the updated name with incremented version tracking
@@ -828,10 +828,10 @@ pub async fn duplicate_document(
 
     // 5. Second pass: update parent IDs to connect tree
     for n in &orig_nodes {
-        if let Some(old_parent) = n.parent_node_id {
-            if let (Some(&new_id), Some(&new_parent)) =
+        if let Some(old_parent) = n.parent_node_id
+            && let (Some(&new_id), Some(&new_parent)) =
                 (node_id_map.get(&n.id), node_id_map.get(&old_parent))
-            {
+        {
                 // Fetch the new node to modify it
                 let mut update_node: node::ActiveModel = node::Entity::find_by_id(new_id)
                     .one(&txn)
@@ -848,7 +848,6 @@ pub async fn duplicate_document(
                     .update(&txn)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            }
         }
     }
 
