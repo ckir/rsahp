@@ -67,7 +67,7 @@ pub async fn list_documents(
 
 // 2. Create Document
 pub async fn create_document(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
@@ -852,8 +852,6 @@ pub async fn get_tree(
 }
 
 async fn fetch_allowed_documents(db: &DatabaseConnection, user_id: i32) -> Result<Vec<document::Model>, (StatusCode, String)> {
-    use sea_orm::{Condition, QuerySelect};
-
     let owned_docs = document::Entity::find()
         .filter(document::Column::OwnerId.eq(user_id))
         .all(db)

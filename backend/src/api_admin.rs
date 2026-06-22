@@ -2,15 +2,15 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, get, post, put},
+    routing::{get, put},
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, ModelTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{user, user_group, user_group_membership};
-use crate::api_auth::{Claims, UserDto};
+use crate::api_auth::Claims;
 
 pub fn router() -> Router<DatabaseConnection> {
     Router::new()
@@ -22,7 +22,7 @@ pub fn router() -> Router<DatabaseConnection> {
 }
 
 pub async fn list_users(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<UserAdminDto>>, (StatusCode, String)> {
     // Only allow admin? We can enforce this if needed, but for now we just return all users.
@@ -66,7 +66,7 @@ pub struct UserAdminDto {
 }
 
 pub async fn toggle_block_user(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<UserAdminDto>, (StatusCode, String)> {
@@ -101,7 +101,7 @@ pub struct GroupDto {
 }
 
 pub async fn list_groups(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<user_group::Model>>, (StatusCode, String)> {
     let groups = user_group::Entity::find()
@@ -112,7 +112,7 @@ pub async fn list_groups(
 }
 
 pub async fn create_group(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Json(payload): Json<GroupDto>,
 ) -> Result<Json<user_group::Model>, (StatusCode, String)> {
@@ -129,7 +129,7 @@ pub async fn create_group(
 }
 
 pub async fn update_group(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     Json(payload): Json<GroupDto>,
@@ -152,7 +152,7 @@ pub async fn update_group(
 }
 
 pub async fn delete_group(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -164,7 +164,7 @@ pub async fn delete_group(
 }
 
 pub async fn get_user_groups(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
 ) -> Result<Json<Vec<user_group_membership::Model>>, (StatusCode, String)> {
@@ -182,7 +182,7 @@ pub struct SetGroupsDto {
 }
 
 pub async fn set_user_groups(
-    claims: Claims,
+    _claims: Claims,
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
     Json(payload): Json<SetGroupsDto>,

@@ -164,8 +164,8 @@ where
             .and_then(|val| val.to_str().ok());
 
         let token = if let Some(header) = auth_header {
-            if header.starts_with("Bearer ") {
-                header[7..].to_string()
+            if let Some(stripped) = header.strip_prefix("Bearer ") {
+                stripped.to_string()
             } else {
                 return Err((StatusCode::UNAUTHORIZED, "Invalid Auth header".into()));
             }
