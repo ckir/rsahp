@@ -13,7 +13,7 @@ $port = if ($config.port) { $config.port } else { 3001 }
 Write-Host "Config loaded. Expecting backend to bind to port $port."
 
 # Start the backend process
-$process = Start-Process -FilePath "cargo" -ArgumentList "run --bin backend -- --config ../config.json" -WorkingDirectory ".\backend" -PassThru -WindowStyle Hidden
+$process = Start-Process -FilePath "cargo" -ArgumentList "run --bin backend -- --config ../config.json" -WorkingDirectory "./backend" -PassThru
 
 Write-Host "Waiting for backend to start (Timeout: 30s)..."
 
