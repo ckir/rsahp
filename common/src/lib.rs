@@ -1,6 +1,6 @@
 //! Module lib.rs
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// DTO representing document metadata.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,14 +55,14 @@ pub struct CreateDocumentDto {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-/// Documentation for TreeDto.
+/// Documentation for `TreeDto`.
 pub struct TreeDto {
     pub folders: Vec<FolderDto>,
     pub documents: Vec<DocumentDto>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-/// Documentation for FolderDto.
+/// Documentation for `FolderDto`.
 pub struct FolderDto {
     pub id: i32,
     pub name: String,
@@ -72,7 +72,7 @@ pub struct FolderDto {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-/// Documentation for AssignmentDto.
+/// Documentation for `AssignmentDto`.
 pub struct AssignmentDto {
     pub id: i32,
     pub name: String,

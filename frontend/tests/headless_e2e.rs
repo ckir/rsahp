@@ -2,17 +2,20 @@ use backend::{create_router, setup_schema};
 use egui_kittest::{Harness, kittest::Queryable};
 use frontend::{
     config::AppConfig,
-    ui::{auth::AuthState, document_window::{CriteriaNode, DocumentState, DocumentTab}, RsahpApp},
+    ui::{
+        RsahpApp,
+        auth::AuthState,
+        document_window::{CriteriaNode, DocumentState, DocumentTab},
+    },
 };
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
-use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 // 1. Backend bootstrapper
 async fn start_test_backend() -> (u16, DatabaseConnection) {
     // In-memory sqlite
     let db = Database::connect("sqlite::memory:").await.unwrap();
-    setup_schema(&db).await;
+    setup_schema(&db).await.unwrap();
 
     // Insert mock document to avoid 404 on save
     let builder = db.get_database_backend();
@@ -36,12 +39,15 @@ async fn start_test_backend() -> (u16, DatabaseConnection) {
     (port, db)
 }
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 #[tokio::test]
 async fn test_save_document_payload() {
-    let _ = tracing_subscriber::fmt().with_env_filter("info").with_test_writer().try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("info")
+        .with_test_writer()
+        .try_init();
 
     let (port, db) = start_test_backend().await;
     let api_url = format!("http://127.0.0.1:{}/api/documents", port);
@@ -92,7 +98,7 @@ async fn test_save_document_payload() {
     doc.active_tab = DocumentTab::Comparisons;
     // Add a comparison
     doc.saaty_values.insert((2, 3), 3.0);
-    
+
     app.borrow_mut().open_documents.push(doc);
 
     // Build the egui kittest harness

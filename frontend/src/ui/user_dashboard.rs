@@ -201,7 +201,14 @@ pub fn render(
         .resizable(true)
         .default_width(300.0)
         .show(ctx, |ui| {
-            crate::ui::explorer::render(ui, ctx, explorer_state, open_documents, api_url, jwt_token);
+            crate::ui::explorer::render(
+                ui,
+                ctx,
+                explorer_state,
+                open_documents,
+                api_url,
+                jwt_token,
+            );
         });
 
     // Render the main central panel for the dashboard.

@@ -1,7 +1,7 @@
 //! This module handles the core functionality of the document editing window,
 //! including criteria hierarchy, pairwise comparisons, and result aggregation.
 
-use common::{DocumentDto, NodeDto, ComparisonDto, ExportedDocumentDto, CreateDocumentDto};
+use common::{ComparisonDto, CreateDocumentDto, DocumentDto, ExportedDocumentDto, NodeDto};
 use eframe::egui;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -391,7 +391,10 @@ pub fn save_document(
 
     // Serialize payload and execute the save request.
     if let Ok(body) = serde_json::to_vec(&export) {
-        tracing::info!("EXPORT PAYLOAD: {}", serde_json::to_string(&export).unwrap());
+        tracing::info!(
+            "EXPORT PAYLOAD: {}",
+            serde_json::to_string(&export).unwrap()
+        );
         let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
 
         // Clean up any old content-type headers and set the correct one.

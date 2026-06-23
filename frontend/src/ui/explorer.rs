@@ -1,7 +1,7 @@
 //! This module renders the project explorer, displaying the user's folders and documents in a tree view.
 
 use super::document_window::DocumentState;
-use common::{DocumentDto, TreeDto, FolderDto};
+use common::{DocumentDto, FolderDto, TreeDto};
 use eframe::egui;
 use egui_ltreeview::{Action, DirPosition, NodeBuilder, TreeView, TreeViewState};
 
@@ -422,184 +422,180 @@ pub fn render(
 
     // Render the explorer tree inside the given ui.
     ui.vertical(|ui| {
-            ui.heading("Project Explorer");
-            ui.separator();
+        ui.heading("Project Explorer");
+        ui.separator();
 
-            // Import Document Button
-            if ui.button("📥 Import JSON Document").clicked()
-                && let Some(path) = rfd::FileDialog::new()
-                    .add_filter("JSON", &["json"])
-                    .pick_file()
-                && let Ok(json_text) = std::fs::read_to_string(&path)
-            {
-                // Construct and send the import POST request.
-                let mut request =
-                    ehttp::Request::post(format!("{}/import", api_url), json_text.into_bytes());
-                if let Some(token) = jwt_token {
-                    request
-                        .headers
-                        .insert("Authorization", &format!("Bearer {}", token));
-                }
-
-                // Clear and set content-type headers.
+        // Import Document Button
+        if ui.button("📥 Import JSON Document").clicked()
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("JSON", &["json"])
+                .pick_file()
+            && let Ok(json_text) = std::fs::read_to_string(&path)
+        {
+            // Construct and send the import POST request.
+            let mut request =
+                ehttp::Request::post(format!("{}/import", api_url), json_text.into_bytes());
+            if let Some(token) = jwt_token {
                 request
                     .headers
-                    .headers
-                    .retain(|(k, _)| k.to_lowercase() != "content-type");
-                request
-                    .headers
-                    .headers
-                    .retain(|(k, _)| k.to_lowercase() != "content-type");
-                request.headers.insert("Content-Type", "application/json");
+                    .insert("Authorization", &format!("Bearer {}", token));
+            }
 
-                let ctx_clone = ctx.clone();
-                state.import_status = Some("Importing...".to_string());
+            // Clear and set content-type headers.
+            request
+                .headers
+                .headers
+                .retain(|(k, _)| k.to_lowercase() != "content-type");
+            request
+                .headers
+                .headers
+                .retain(|(k, _)| k.to_lowercase() != "content-type");
+            request.headers.insert("Content-Type", "application/json");
 
-                // Execute the import request.
-                ehttp::fetch(request, move |result| {
-                    match result {
-                        Ok(res) => {
-                            tracing::info!("Import success: {}", res.text().unwrap_or(""))
-                        }
-                        Err(e) => tracing::error!("Import error: {}", e),
+            let ctx_clone = ctx.clone();
+            state.import_status = Some("Importing...".to_string());
+
+            // Execute the import request.
+            ehttp::fetch(request, move |result| {
+                match result {
+                    Ok(res) => {
+                        tracing::info!("Import success: {}", res.text().unwrap_or(""))
                     }
-                    ctx_clone.request_repaint();
+                    Err(e) => tracing::error!("Import error: {}", e),
+                }
+                ctx_clone.request_repaint();
+            });
+        }
+
+        // Display any import status message.
+        if let Some(status) = &state.import_status {
+            ui.label(status);
+        }
+        ui.separator();
+
+        // Render the tree view.
+        egui::ScrollArea::both().show(ui, |ui| {
+            let mut context_menu_actions = Vec::<ContextMenuActions>::new();
+
+            // Construct and display the tree using egui_ltreeview.
+            let (_, actions) = TreeView::new(ui.make_persistent_id("explorer_tree"))
+                .allow_drag_and_drop(true)
+                .show_state(ui, &mut state.tree_view_state, |mut builder| {
+                    show_node(builder, &state.tree, &mut context_menu_actions);
                 });
-            }
 
-            // Display any import status message.
-            if let Some(status) = &state.import_status {
-                ui.label(status);
-            }
-            ui.separator();
+            let mut docs_to_open = Vec::new();
 
-            // Render the tree view.
-            egui::ScrollArea::both().show(ui, |ui| {
-                let mut context_menu_actions = Vec::<ContextMenuActions>::new();
+            // Handle tree view interactions (moves and activations).
+            for action in actions {
+                match action {
+                    Action::Move(dnd) => {
+                        // Handle drag-and-drop moves.
+                        for source_node in &dnd.source {
+                            if let Some(source) = state.tree.remove(*source_node) {
+                                // Prepare the move API payload.
+                                let target_folder_id = if dnd.target == 0 {
+                                    "null".to_string()
+                                } else {
+                                    dnd.target.to_string()
+                                };
+                                let mut url = api_url.to_string();
+                                if url.ends_with('/') {
+                                    url.pop();
+                                }
 
-                // Construct and display the tree using egui_ltreeview.
-                let (_, actions) = TreeView::new(ui.make_persistent_id("explorer_tree"))
-                    .allow_drag_and_drop(true)
-                    .show_state(ui, &mut state.tree_view_state, |mut builder| {
-                        show_node(builder, &state.tree, &mut context_menu_actions);
-                    });
-
-                let mut docs_to_open = Vec::new();
-
-                // Handle tree view interactions (moves and activations).
-                for action in actions {
-                    match action {
-                        Action::Move(dnd) => {
-                            // Handle drag-and-drop moves.
-                            for source_node in &dnd.source {
-                                if let Some(source) = state.tree.remove(*source_node) {
-                                    // Prepare the move API payload.
-                                    let target_folder_id = if dnd.target == 0 {
-                                        "null".to_string()
-                                    } else {
-                                        dnd.target.to_string()
-                                    };
-                                    let mut url = api_url.to_string();
-                                    if url.ends_with('/') {
-                                        url.pop();
-                                    }
-
-                                    // Fire API requests based on node type.
-                                    if let Node::File(ref f) = source {
-                                        if let Some(did) = f.document_id {
-                                            let move_url = format!("{}/{}/move", url, did);
-                                            let payload =
-                                                format!(r#"{{"folder_id":{}}}"#, target_folder_id);
-                                            let mut request = ehttp::Request::post(
-                                                move_url,
-                                                payload.into_bytes(),
-                                            );
-                                            if let Some(token) = jwt_token {
-                                                request.headers.insert(
-                                                    "Authorization",
-                                                    &format!("Bearer {}", token),
-                                                );
-                                            }
-                                            ehttp::fetch(request, |_| {});
-                                        }
-                                    } else if let Node::Directory(ref d) = source {
-                                        let update_url = format!("{}/folders/{}", url, d.id);
-                                        let payload = format!(
-                                            r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#,
-                                            d.name, target_folder_id
-                                        );
-                                        let mut req =
-                                            ehttp::Request::post(update_url, payload.into_bytes());
+                                // Fire API requests based on node type.
+                                if let Node::File(ref f) = source {
+                                    if let Some(did) = f.document_id {
+                                        let move_url = format!("{}/{}/move", url, did);
+                                        let payload =
+                                            format!(r#"{{"folder_id":{}}}"#, target_folder_id);
+                                        let mut request =
+                                            ehttp::Request::post(move_url, payload.into_bytes());
                                         if let Some(token) = jwt_token {
-                                            req.headers.insert(
+                                            request.headers.insert(
                                                 "Authorization",
                                                 &format!("Bearer {}", token),
                                             );
                                         }
-                                        ehttp::fetch(req, |_| {});
+                                        ehttp::fetch(request, |_| {});
                                     }
-
-                                    // Re-insert the node at its new local position.
-                                    let _ = state.tree.insert(dnd.target, dnd.position, source);
+                                } else if let Node::Directory(ref d) = source {
+                                    let update_url = format!("{}/folders/{}", url, d.id);
+                                    let payload = format!(
+                                        r#"{{"name":"{}","owner_id":1,"parent_folder_id":{}}}"#,
+                                        d.name, target_folder_id
+                                    );
+                                    let mut req =
+                                        ehttp::Request::post(update_url, payload.into_bytes());
+                                    if let Some(token) = jwt_token {
+                                        req.headers
+                                            .insert("Authorization", &format!("Bearer {}", token));
+                                    }
+                                    ehttp::fetch(req, |_| {});
                                 }
+
+                                // Re-insert the node at its new local position.
+                                let _ = state.tree.insert(dnd.target, dnd.position, source);
                             }
                         }
-                        Action::Activate(activate) => {
-                            // Handle node activation (e.g., double-clicks).
-                            for &id in &activate.selected {
-                                // Recursive search for the document.
-                                fn find_doc(node: &Node, target: usize) -> Option<(usize, String)> {
-                                    match node {
-                                        Node::File(f) if f.id == target => {
-                                            f.document_id.map(|did| (did, f.name.clone()))
-                                        }
-                                        Node::Directory(d) => {
-                                            d.children.iter().find_map(|c| find_doc(c, target))
-                                        }
-                                        _ => None,
+                    }
+                    Action::Activate(activate) => {
+                        // Handle node activation (e.g., double-clicks).
+                        for &id in &activate.selected {
+                            // Recursive search for the document.
+                            fn find_doc(node: &Node, target: usize) -> Option<(usize, String)> {
+                                match node {
+                                    Node::File(f) if f.id == target => {
+                                        f.document_id.map(|did| (did, f.name.clone()))
                                     }
-                                }
-                                // If found, prepare to open it.
-                                if let Some((doc_id, name)) = find_doc(&state.tree, id) {
-                                    docs_to_open.push(DocumentState::new(doc_id as i32, &name));
+                                    Node::Directory(d) => {
+                                        d.children.iter().find_map(|c| find_doc(c, target))
+                                    }
+                                    _ => None,
                                 }
                             }
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Add activated documents to the global list.
-                open_documents.extend(docs_to_open);
-
-                // Process queued context menu actions.
-                for action in context_menu_actions {
-                    match action {
-                        ContextMenuActions::Delete(id) => {
-                            // Prompt for delete confirmation.
-                            state.modal_state = Some(ModalState {
-                                action: ModalAction::ConfirmDelete(id),
-                                input_name: String::new(),
-                            });
-                        }
-                        ContextMenuActions::AddLeaf(parent_id, position) => {
-                            // Prompt for new file name.
-                            state.modal_state = Some(ModalState {
-                                action: ModalAction::AddFile(parent_id, position),
-                                input_name: String::new(),
-                            });
-                        }
-                        ContextMenuActions::AddDir(parent_id, position) => {
-                            // Prompt for new directory name.
-                            state.modal_state = Some(ModalState {
-                                action: ModalAction::AddDir(parent_id, position),
-                                input_name: String::new(),
-                            });
+                            // If found, prepare to open it.
+                            if let Some((doc_id, name)) = find_doc(&state.tree, id) {
+                                docs_to_open.push(DocumentState::new(doc_id as i32, &name));
+                            }
                         }
                     }
+                    _ => {}
                 }
-            });
+            }
+
+            // Add activated documents to the global list.
+            open_documents.extend(docs_to_open);
+
+            // Process queued context menu actions.
+            for action in context_menu_actions {
+                match action {
+                    ContextMenuActions::Delete(id) => {
+                        // Prompt for delete confirmation.
+                        state.modal_state = Some(ModalState {
+                            action: ModalAction::ConfirmDelete(id),
+                            input_name: String::new(),
+                        });
+                    }
+                    ContextMenuActions::AddLeaf(parent_id, position) => {
+                        // Prompt for new file name.
+                        state.modal_state = Some(ModalState {
+                            action: ModalAction::AddFile(parent_id, position),
+                            input_name: String::new(),
+                        });
+                    }
+                    ContextMenuActions::AddDir(parent_id, position) => {
+                        // Prompt for new directory name.
+                        state.modal_state = Some(ModalState {
+                            action: ModalAction::AddDir(parent_id, position),
+                            input_name: String::new(),
+                        });
+                    }
+                }
+            }
         });
+    });
 
     // Render the modal dialog if needed.
     if let Some(modal) = &mut state.modal_state {
@@ -704,7 +700,7 @@ pub fn render(
                         if url.ends_with('/') {
                             url.pop();
                         }
-                        
+
                         let mut request = ehttp::Request::post(url, payload.into_bytes());
                         if let Some(token) = jwt_token {
                             request
@@ -721,15 +717,21 @@ pub fn render(
                         let (tx, rx) = std::sync::mpsc::channel();
                         state.new_doc_rx = Some(rx);
                         let ctx_clone = ctx.clone();
-                        
+
                         ehttp::fetch(request, move |result| {
                             if let Ok(res) = result {
                                 if res.status == 200 {
-                                    if let Ok(doc) = serde_json::from_slice::<DocumentDto>(&res.bytes) {
+                                    if let Ok(doc) =
+                                        serde_json::from_slice::<DocumentDto>(&res.bytes)
+                                    {
                                         let _ = tx.send((id, doc));
                                     }
                                 } else {
-                                    tracing::error!("Create doc failed: Status: {}, Body: {:?}", res.status, res.text());
+                                    tracing::error!(
+                                        "Create doc failed: Status: {}, Body: {:?}",
+                                        res.status,
+                                        res.text()
+                                    );
                                 }
                             }
                             ctx_clone.request_repaint();

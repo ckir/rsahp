@@ -54,7 +54,10 @@ impl AppConfig {
         let mut config = AppConfig::default();
 
         // Determine the configuration path, defaulting to "config.json".
-        let config_path = cli.config.clone().unwrap_or_else(|| "config.json".to_string());
+        let config_path = cli
+            .config
+            .clone()
+            .unwrap_or_else(|| "config.json".to_string());
 
         // Attempt to read and parse the configuration file.
         if let Ok(content) = fs::read_to_string(&config_path)

@@ -54,8 +54,7 @@ impl From<comparison::Model> for common::ComparisonDto {
 }
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait,
 };
 
 use crate::api_auth::Claims;
@@ -468,16 +467,6 @@ pub async fn create_comparison(
     // Return result
     Ok(Json(result))
 }
-
-/// Data structure representing a fully exported document tree.
-/* pub struct common::ExportedDocumentDto {
-    /// Core document record
-    pub document: document::Model,
-    /// Flat list of nodes comprising the structure
-    pub nodes: Vec<node::Model>,
-    /// Set of evaluation comparisons
-    pub comparisons: Vec<comparison::Model>,
-} */
 
 /// Exports a document to JSON including all nested nodes and comparisons.
 pub async fn export_document(
