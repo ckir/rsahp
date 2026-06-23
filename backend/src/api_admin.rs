@@ -36,7 +36,7 @@ pub async fn list_users(
 ) -> Result<Json<Vec<UserAdminDto>>, (StatusCode, String)> {
     // Only allow admin? We can enforce this if needed, but for now we just return all users.
     // Ideally we fetch users and strip passwords.
-    
+
     // Query all users from the database
     let users = user::Entity::find()
         .all(&db)
@@ -51,7 +51,7 @@ pub async fn list_users(
 
     // Initialize a vector to hold the resulting data transfer objects
     let mut dtos = Vec::new();
-    
+
     // Iterate over each user to construct their DTO
     for u in users {
         // Find group IDs associated with the current user
@@ -60,7 +60,7 @@ pub async fn list_users(
             .filter(|m| m.user_id == u.id)
             .map(|m| m.group_id)
             .collect();
-            
+
         // Append the constructed DTO to the results list
         dtos.push(UserAdminDto {
             id: u.id,
@@ -106,7 +106,7 @@ pub async fn toggle_block_user(
 
     // Determine the current deleted status
     let current_deleted = u.is_deleted.clone().unwrap();
-    
+
     // Flip the deleted status
     u.is_deleted = Set(!current_deleted);
 
@@ -145,7 +145,7 @@ pub async fn list_groups(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the retrieved groups wrapped in JSON
     Ok(Json(groups))
 }
@@ -162,13 +162,13 @@ pub async fn create_group(
         parent_id: Set(payload.parent_id),
         ..Default::default()
     };
-    
+
     // Insert the new group into the database
     let inserted = new_group
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the created group
     Ok(Json(inserted))
 }
@@ -197,7 +197,7 @@ pub async fn update_group(
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the updated group
     Ok(Json(updated))
 }
@@ -213,7 +213,7 @@ pub async fn delete_group(
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return a No Content status indicating successful deletion
     Ok(StatusCode::NO_CONTENT)
 }
@@ -230,7 +230,7 @@ pub async fn get_user_groups(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the list of memberships
     Ok(Json(memberships))
 }
@@ -264,7 +264,7 @@ pub async fn set_user_groups(
             group_id: Set(gid),
             ..Default::default()
         };
-        
+
         // Insert the membership into the database
         membership
             .insert(&db)

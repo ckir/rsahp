@@ -59,7 +59,7 @@ impl AppConfig {
 
         // Determine the configuration path, defaulting to "config.json".
         let config_path = cli.config.unwrap_or_else(|| "config.json".to_string());
-        
+
         // Attempt to read and parse the configuration file.
         if let Ok(content) = fs::read_to_string(&config_path)
             && let Ok(parsed) = serde_json::from_str::<AppConfig>(&content)
@@ -72,7 +72,7 @@ impl AppConfig {
         if let Some(url) = cli.api_url {
             config.api_url = Some(url);
         }
-        
+
         // Apply CLI overrides for GPU usage.
         if let Some(gpu) = cli.use_gpu {
             config.use_gpu = Some(gpu);
@@ -86,10 +86,10 @@ impl AppConfig {
     pub fn save(&self) {
         // Parse the command-line arguments to find the config path.
         let cli = CliArgs::parse();
-        
+
         // Determine the configuration path, defaulting to "config.json".
         let config_path = cli.config.unwrap_or_else(|| "config.json".to_string());
-        
+
         // Serialize the configuration to a pretty JSON string.
         if let Ok(content) = serde_json::to_string_pretty(self) {
             // Write the JSON string to the file, ignoring any errors.

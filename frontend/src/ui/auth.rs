@@ -85,14 +85,14 @@ pub struct UserDto {
 }
 
 /// Renders the authentication modal (Login/Register).
-/// 
+///
 /// This function handles the display and logic for user authentication,
 /// including switching between login and registration, input fields,
 /// submit buttons, error display, and managing the background network request.
 pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_url: &str) {
     // If a JWT token is already present, the user is logged in, so we do not render the modal.
     if state.jwt_token.is_some() {
-        return; 
+        return;
     }
 
     // Check the receiver channel for any results from a background authentication request.
@@ -120,7 +120,7 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
 
     // Define the window to be open.
     let mut is_open = true;
-    
+
     // Create a new modal window for authentication.
     egui::Window::new(if state.is_registering {
         "Create Account"
@@ -138,7 +138,7 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
             ui.label("Email:");
             ui.text_edit_singleline(&mut state.email_input);
         });
-        
+
         // Render the password input field, masking the input.
         ui.horizontal(|ui| {
             ui.label("Password:");
@@ -166,7 +166,7 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
                 } else {
                     "Login"
                 };
-                
+
                 // Render the submit button and handle clicks.
                 if ui.button(btn_text).clicked() {
                     // Determine the API endpoint based on the mode.
@@ -175,7 +175,7 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
                     } else {
                         "/login"
                     };
-                    
+
                     // Construct the full URL, removing "/documents" if it was present in the base URL.
                     let url = format!(
                         "{}/auth{}",
@@ -195,7 +195,7 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
                     if let Ok(body) = serde_json::to_vec(&payload) {
                         // Create a POST request with the JSON body.
                         let mut request = ehttp::Request::post(url, body);
-                        
+
                         // Remove any existing Content-Type headers.
                         request
                             .headers
@@ -209,13 +209,13 @@ pub fn render_login_modal(ctx: &egui::Context, state: &mut AuthState, api_base_u
                             .headers
                             .headers
                             .retain(|(k, _)| k.to_lowercase() != "content-type");
-                            
+
                         // Insert the correct Content-Type header.
                         request.headers.insert("Content-Type", "application/json");
-                        
+
                         // Create a channel for receiving the background request result.
                         let (tx, rx) = std::sync::mpsc::channel();
-                        
+
                         // Store the receiver in the state.
                         state.rx = Some(rx);
                         // Mark the request as in progress.

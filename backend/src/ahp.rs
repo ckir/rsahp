@@ -1,5 +1,5 @@
 //! Module for Analytic Hierarchy Process (AHP) calculations.
-//! This module provides functions for calculating priority vectors, 
+//! This module provides functions for calculating priority vectors,
 //! consistency metrics, and aggregating matrices/vectors.
 
 use nalgebra::{DMatrix, DVector};

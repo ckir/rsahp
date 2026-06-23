@@ -58,9 +58,81 @@ async fn main() -> Result<(), DbErr> {
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
     // Log the bound address
     tracing::info!("Listening on {}", bind_addr);
-    // Serve the Axum application
-    axum::serve(listener, app).await.unwrap();
+    // Serve the Axum application with graceful shutdown
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
 
     // Return success
     Ok(())
+}
+
+/// Listens for graceful shutdown signals (Ctrl+C, SIGTERM, or Windows-specific signals).
+#[cfg(unix)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("Shutdown signal received, starting graceful shutdown...");
+}
+
+#[cfg(windows)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    let ctrl_close = async {
+        tokio::signal::windows::ctrl_close()
+            .expect("failed to install Ctrl+Close handler")
+            .recv()
+            .await;
+    };
+
+    let ctrl_break = async {
+        tokio::signal::windows::ctrl_break()
+            .expect("failed to install Ctrl+Break handler")
+            .recv()
+            .await;
+    };
+
+    let ctrl_shutdown = async {
+        tokio::signal::windows::ctrl_shutdown()
+            .expect("failed to install Ctrl+Shutdown handler")
+            .recv()
+            .await;
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = ctrl_close => {},
+        _ = ctrl_break => {},
+        _ = ctrl_shutdown => {},
+    }
+    tracing::info!("Shutdown signal received, starting graceful shutdown...");
+}
+
+#[cfg(not(any(unix, windows)))]
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to install Ctrl+C handler");
+    tracing::info!("Shutdown signal received, starting graceful shutdown...");
 }

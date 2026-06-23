@@ -124,7 +124,7 @@ impl RsahpApp {
         let mut closed_docs = Vec::new();
         for (idx, doc) in self.open_documents.iter_mut().enumerate() {
             let mut is_open = true;
-            
+
             // Check if a close operation has been requested.
             if !doc.close_requested {
                 // Render the document window.
@@ -183,7 +183,7 @@ impl RsahpApp {
                 // If a close was requested and there are unsaved changes, show a confirmation modal.
                 let mut modal_open = true;
                 let mut action = None;
-                
+
                 // Render the confirmation modal window.
                 egui::Window::new("Unsaved Changes")
                     .id(egui::Id::new("close_modal").with(doc.id))
@@ -214,7 +214,7 @@ impl RsahpApp {
                 if !modal_open {
                     doc.close_requested = false;
                 }
-                
+
                 // Handle the action chosen in the confirmation modal.
                 match action {
                     Some("save") => {
@@ -255,7 +255,7 @@ impl RsahpApp {
                 .show(ctx, |ui| {
                     // Display dummy pending tasks.
                     ui.label("You have 2 pending AHP surveys.");
-                    
+
                     // Button to open a specific mock task.
                     if ui
                         .button("Survey: Vendor Selection (Management Group)")
@@ -269,10 +269,10 @@ impl RsahpApp {
                     }
                 });
         }
-        
+
         // Update the state flag for task list visibility.
         self.show_task_list = show_task_list;
-        
+
         // If a new document was requested from the task list, add it.
         if let Some(doc) = new_doc {
             self.open_documents.push(doc);

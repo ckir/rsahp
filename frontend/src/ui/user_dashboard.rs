@@ -81,7 +81,7 @@ impl Default for UserDashboardState {
 }
 
 /// Renders the user dashboard, displaying a folder/document tree.
-/// 
+///
 /// This function handles data fetching, categorizing documents into "owned" and "evaluations",
 /// and rendering the dashboard UI panels for the current user.
 pub fn render(
@@ -105,7 +105,7 @@ pub fn render(
     {
         // Create a channel for receiving the fetch result.
         let (tx, rx) = channel();
-        
+
         // Update state to indicate fetching has started.
         state.tree_rx = Some(rx);
         state.fetch_in_progress = true;
@@ -113,7 +113,7 @@ pub fn render(
 
         // Construct the GET request for the document tree.
         let mut request = ehttp::Request::get(format!("{}/tree", api_url));
-        
+
         // Add the Authorization header if a token is provided.
         if let Some(token) = jwt_token {
             request
@@ -123,7 +123,7 @@ pub fn render(
 
         // Clone the egui context to request a repaint later.
         let ctx_clone = ctx.clone();
-        
+
         // Execute the background fetch request.
         ehttp::fetch(request, move |result| {
             let res = match result {
@@ -145,10 +145,10 @@ pub fn render(
                 // Handle network errors.
                 Err(e) => Err(e),
             };
-            
+
             // Send the result back to the main thread.
             let _ = tx.send(res);
-            
+
             // Request a UI repaint to process the result.
             ctx_clone.request_repaint();
         });
@@ -177,7 +177,7 @@ pub fn render(
 
     // Fallback user ID to 0 if none is provided.
     let user_id = logged_in_user_id.unwrap_or(0);
-    
+
     // Separate documents into "owned" and "evaluations" lists.
     let mut my_documents: Vec<&DocumentDto> = Vec::new();
     let mut evaluation_tasks: Vec<&DocumentDto> = Vec::new();
@@ -198,7 +198,7 @@ pub fn render(
     // Render the main central panel for the dashboard.
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.add_space(10.0);
-        
+
         // Render the top header area.
         ui.horizontal(|ui| {
             ui.heading("User Dashboard");
@@ -207,7 +207,7 @@ pub fn render(
                 if ui.button("🔄 Refresh Data").clicked() {
                     needs_refresh = true;
                 }
-                
+
                 // Display the error message if present.
                 if let Some(err) = &state.error_msg {
                     ui.colored_label(egui::Color32::RED, format!("Error: {}", err));
@@ -223,7 +223,7 @@ pub fn render(
                 // Set the width to half the available space.
                 ui.set_width(ui.available_width() / 2.0 - 10.0);
                 ui.heading("Documents to Evaluate");
-                
+
                 // Display the count of pending tasks.
                 ui.label(format!(
                     "Pending Evaluation Tasks ({})",
@@ -281,7 +281,7 @@ pub fn render(
             // Right Panel: My Documents
             ui.vertical(|ui| {
                 ui.heading("My Documents");
-                
+
                 // Display the count of owned projects.
                 ui.label(format!("Projects You Own ({})", my_documents.len()));
                 ui.separator();

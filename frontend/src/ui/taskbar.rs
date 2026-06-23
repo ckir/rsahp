@@ -6,7 +6,7 @@ use crate::ui::explorer::ExplorerState;
 use eframe::egui;
 
 /// Renders the top taskbar for the application.
-/// 
+///
 /// This function draws the top navigation bar containing the logo, navigation links,
 /// task list toggle, zoom controls, and logout functionality.
 pub fn render(
@@ -26,16 +26,16 @@ pub fn render(
             ui.horizontal_centered(|ui| {
                 // Render the system logo text.
                 ui.heading("AHP System Logo");
-                
+
                 // Add a vertical separator.
                 ui.separator();
-                
+
                 // Render navigation links (dummy state for now).
                 ui.selectable_label(true, "🏠 Home");
                 ui.selectable_label(false, "📋 Tasks");
                 ui.selectable_label(false, "👤 Profile");
                 ui.selectable_label(false, "⚙ Settings");
-                
+
                 // Add another separator.
                 ui.separator();
 
@@ -64,7 +64,7 @@ pub fn render(
                         // Close the admin panel.
                         admin_state.is_open = false;
                     }
-                    
+
                     // Add a separator before the logout button (renders right-to-left).
                     ui.separator();
 
@@ -85,7 +85,7 @@ pub fn render(
                         |ui| {
                             // Define available zoom levels.
                             let zoom_levels = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0];
-                            
+
                             // Render selectable options for each zoom level.
                             for &level in zoom_levels.iter() {
                                 if ui
@@ -101,10 +101,10 @@ pub fn render(
                                     ui.close_menu();
                                 }
                             }
-                            
+
                             // Add a separator before the reset option.
                             ui.separator();
-                            
+
                             // Render a button to reset the zoom to the default 125%.
                             if ui.button("Reset (125%)").clicked() {
                                 current_zoom = 1.25;

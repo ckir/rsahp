@@ -106,7 +106,7 @@ pub async fn create_document(
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the inserted model
     Ok(Json(result))
 }
@@ -122,7 +122,7 @@ pub async fn get_document(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Document not found".to_string()))?;
-        
+
     // Return the found document
     Ok(Json(doc))
 }
@@ -151,7 +151,7 @@ pub async fn update_document(
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return updated data
     Ok(Json(updated))
 }
@@ -166,12 +166,12 @@ pub async fn delete_document(
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Check if any row was affected to confirm deletion
     if res.rows_affected == 0 {
         return Err((StatusCode::NOT_FOUND, "Document not found".to_string()));
     }
-    
+
     // Return success message
     Ok("Deleted".to_string())
 }
@@ -271,7 +271,7 @@ pub struct NodeDto {
     /// Name of the node
     pub name: String,
     /// Node type classification: "Goal", "Criteria", "Alternative"
-    pub node_type: String, 
+    pub node_type: String,
     /// Cost parameter for AHP
     pub cost: Option<f64>,
 }
@@ -287,7 +287,7 @@ pub async fn list_nodes(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the list of nodes
     Ok(Json(nodes))
 }
@@ -307,13 +307,13 @@ pub async fn create_node(
         cost: Set(payload.cost),
         ..Default::default()
     };
-    
+
     // Insert node to DB
     let result = new_node
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return created node
     Ok(Json(result))
 }
@@ -343,7 +343,7 @@ pub async fn update_node(
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return updated node
     Ok(Json(updated))
 }
@@ -358,12 +358,12 @@ pub async fn delete_node(
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Validate if deletion actually found a row
     if res.rows_affected == 0 {
         return Err((StatusCode::NOT_FOUND, "Node not found".to_string()));
     }
-    
+
     // Send confirmation
     Ok("Deleted".to_string())
 }
@@ -394,7 +394,7 @@ pub async fn list_comparisons(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return the retrieved list
     Ok(Json(comps))
 }
@@ -415,13 +415,13 @@ pub async fn create_comparison(
         saaty_value: Set(payload.saaty_value),
         ..Default::default()
     };
-    
+
     // Insert into DB
     let result = new_comp
         .insert(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Return result
     Ok(Json(result))
 }
@@ -480,7 +480,7 @@ pub async fn import_document(
     let mut doc_am = payload.document.into_active_model();
     // Do not preserve the primary key
     doc_am.id = sea_orm::ActiveValue::NotSet;
-    
+
     // Write new document row
     let new_doc = doc_am
         .insert(&db)
@@ -491,7 +491,7 @@ pub async fn import_document(
     let mut node_id_map = std::collections::HashMap::new();
     let mut nodes_to_insert = payload.nodes;
 
-    // We must resolve parent dependencies correctly without foreign key errors. 
+    // We must resolve parent dependencies correctly without foreign key errors.
     // Loop until nodes list is empty.
     while !nodes_to_insert.is_empty() {
         let mut inserted_any = false;
@@ -508,11 +508,11 @@ pub async fn import_document(
             if can_insert {
                 let pid_opt = node.parent_node_id;
                 let mut am = node.into_active_model();
-                
+
                 // Clear the original ID, set the new document ID reference
                 am.id = sea_orm::ActiveValue::NotSet;
                 am.document_id = Set(new_doc.id);
-                
+
                 // Resolve any parent link to its new inserted ID
                 if let Some(pid) = pid_opt
                     && let Some(&new_pid) = node_id_map.get(&pid)
@@ -525,7 +525,7 @@ pub async fn import_document(
                     .insert(&db)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                    
+
                 // Record the mapping
                 node_id_map.insert(old_id, inserted_node.id);
                 inserted_any = true;
@@ -542,7 +542,7 @@ pub async fn import_document(
                 "Invalid node hierarchy in import".to_string(),
             ));
         }
-        
+
         // Loop again with leftover
         nodes_to_insert = remaining;
     }
@@ -550,7 +550,7 @@ pub async fn import_document(
     // Follow up inserting comparisons mapping references
     for comp in payload.comparisons {
         let mut am = comp.into_active_model();
-        
+
         // Wipe original IDs and map to new document ID
         am.id = sea_orm::ActiveValue::NotSet;
         am.document_id = Set(new_doc.id);
@@ -646,7 +646,7 @@ pub async fn save_full_document(
         .filter(comparison::Column::DocumentId.eq(id))
         .exec(&db)
         .await;
-        
+
     // Delete existing nodes
     let _ = node::Entity::delete_many()
         .filter(node::Column::DocumentId.eq(id))
@@ -675,7 +675,7 @@ pub async fn save_full_document(
                 let mut am = node.into_active_model();
                 am.id = sea_orm::ActiveValue::NotSet;
                 am.document_id = Set(id);
-                
+
                 // Tie properly to inserted parent context
                 if let Some(pid) = pid_opt
                     && let Some(&new_pid) = node_id_map.get(&pid)
@@ -688,7 +688,7 @@ pub async fn save_full_document(
                     .insert(&db)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                    
+
                 // Record translation
                 node_id_map.insert(old_id, inserted_node.id);
                 inserted_any = true;
@@ -780,7 +780,7 @@ pub async fn duplicate_document(
 
     // Create the updated name with incremented version tracking
     let new_doc_name = format!("{} (v{})", base_name, new_version);
-    
+
     // Construct new duplicate document entry
     let new_doc = document::ActiveModel {
         name: Set(new_doc_name),
@@ -790,7 +790,7 @@ pub async fn duplicate_document(
         created_at: Set(chrono::Utc::now()),
         ..Default::default()
     };
-    
+
     // Perform database insertion and track primary key
     let inserted_doc = new_doc
         .insert(&txn)
@@ -821,7 +821,7 @@ pub async fn duplicate_document(
             .insert(&txn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            
+
         // Map old node ID to the new duplicate ID
         node_id_map.insert(n.id, inserted.id);
     }
@@ -832,22 +832,22 @@ pub async fn duplicate_document(
             && let (Some(&new_id), Some(&new_parent)) =
                 (node_id_map.get(&n.id), node_id_map.get(&old_parent))
         {
-                // Fetch the new node to modify it
-                let mut update_node: node::ActiveModel = node::Entity::find_by_id(new_id)
-                    .one(&txn)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .into();
-                
-                // Adjust parent binding
-                update_node.parent_node_id = Set(Some(new_parent));
-                
-                // Execute modification
-                update_node
-                    .update(&txn)
-                    .await
-                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            // Fetch the new node to modify it
+            let mut update_node: node::ActiveModel = node::Entity::find_by_id(new_id)
+                .one(&txn)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+
+            // Adjust parent binding
+            update_node.parent_node_id = Set(Some(new_parent));
+
+            // Execute modification
+            update_node
+                .update(&txn)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         }
     }
 
@@ -874,7 +874,7 @@ pub async fn duplicate_document(
             saaty_value: Set(c.saaty_value),
             ..Default::default()
         };
-        
+
         // Finalise entry recording
         new_comp
             .insert(&txn)
@@ -911,7 +911,7 @@ pub async fn list_folders(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Send standard JSON response
     Ok(Json(folders))
 }
@@ -968,7 +968,7 @@ pub async fn update_folder(
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Send final entity
     Ok(Json(updated))
 }
@@ -983,7 +983,7 @@ pub async fn delete_folder(
         .exec(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Standard response returning no content upon execution
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1021,7 +1021,7 @@ pub async fn move_document(
         .update(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Render feedback
     Ok(Json(updated))
 }
@@ -1045,10 +1045,10 @@ pub async fn get_tree(
         .all(&db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        
+
     // Execute filter determining accessible user contents
     let documents = fetch_allowed_documents(&db, claims.sub).await?;
-    
+
     // Serve DTO instance tying context sets together
     Ok(Json(TreeDto { folders, documents }))
 }
@@ -1079,7 +1079,7 @@ async fn fetch_allowed_documents(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Remap membership references to exact context identifiers 
+    // Remap membership references to exact context identifiers
     let group_ids: Vec<i32> = memberships.into_iter().map(|m| m.group_id).collect();
 
     // Map out assignments pointing specifically to the groups determined earlier
@@ -1095,10 +1095,10 @@ async fn fetch_allowed_documents(
 
     // Combine access listings together to define a complete accessible identity set
     let mut doc_ids: Vec<i32> = owned_docs.iter().map(|d| d.id).collect();
-    
+
     // Add specifically bound context
     doc_ids.extend(user_assignments.into_iter().map(|a| a.document_id));
-    
+
     // Incorporate group bound documents to accessible collection
     doc_ids.extend(group_assignments.into_iter().map(|a| a.document_id));
 
@@ -1118,6 +1118,6 @@ async fn fetch_allowed_documents(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Conclude internal filtering execution responding accessible document output representations 
+    // Conclude internal filtering execution responding accessible document output representations
     Ok(docs)
 }

@@ -9,7 +9,7 @@ use approx::assert_relative_eq;
 async fn test_calculate_perfectly_consistent() {
     // Initialize the test context with an in-memory database and test server
     let ctx = common::TestContext::new().await;
-    
+
     // Retrieve the perfectly consistent golden matrix
     let golden = common::golden_data::perfectly_consistent_matrix();
 
@@ -30,13 +30,13 @@ async fn test_calculate_perfectly_consistent() {
 
     // Extract the consistency ratio from the response
     let cr = json["consistency_ratio"].as_f64().unwrap();
-    
+
     // Assert that the calculated CR matches the expected CR
     assert_relative_eq!(cr, golden.expected_cr, epsilon = 1e-4);
 
     // Extract the priority vector (weights) from the response
     let weights = json["priority_vector"].as_array().unwrap();
-    
+
     // Assert that the number of weights matches expectations
     assert_eq!(weights.len(), golden.expected_weights.len());
 
@@ -55,7 +55,7 @@ async fn test_calculate_perfectly_consistent() {
 async fn test_calculate_invalid_consistency() {
     // Initialize the test context with an in-memory database and test server
     let ctx = common::TestContext::new().await;
-    
+
     // Retrieve the matrix with invalid consistency
     let golden = common::golden_data::invalid_consistency_matrix();
 
@@ -76,7 +76,7 @@ async fn test_calculate_invalid_consistency() {
 
     // Extract the consistency ratio from the response
     let cr = json["consistency_ratio"].as_f64().unwrap();
-    
+
     // Assert that the CR is appropriately large, indicating inconsistency
     assert!(cr > 0.10);
 }

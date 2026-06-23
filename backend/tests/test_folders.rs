@@ -32,7 +32,7 @@ async fn test_create_and_move_folder() {
 
     // Assert that the login was successful
     res_login.assert_status_ok();
-    
+
     // Extract the token from the login response
     let token = res_login.json::<serde_json::Value>()["token"]
         .as_str()
@@ -49,10 +49,10 @@ async fn test_create_and_move_folder() {
             "owner_id": 2
         }))
         .await;
-        
+
     // Assert that root folder creation was successful
     res.assert_status_ok();
-    
+
     // Extract root folder details
     let root_folder = res.json::<serde_json::Value>();
     let root_id = root_folder["id"].as_i64().unwrap();
@@ -68,10 +68,10 @@ async fn test_create_and_move_folder() {
             "parent_folder_id": root_id
         }))
         .await;
-        
+
     // Assert that child folder creation was successful
     res2.assert_status_ok();
-    
+
     // Extract child folder details
     let child_folder = res2.json::<serde_json::Value>();
     let child_id = child_folder["id"].as_i64().unwrap();
@@ -82,16 +82,16 @@ async fn test_create_and_move_folder() {
         .get("/api/documents/tree")
         .add_header("Authorization", format!("Bearer {}", token))
         .await;
-        
+
     // Assert that fetching the tree was successful
     res_tree.assert_status_ok();
-    
+
     // Parse the tree response
     let tree = res_tree.json::<serde_json::Value>();
 
     // In our tree structure, the flat folders list should have the child folder with parent_id
     let folders = tree["folders"].as_array().unwrap();
-    
+
     // Find the child folder in the tree
     let child_node = folders
         .iter()
@@ -112,7 +112,7 @@ async fn test_create_and_move_folder() {
             "parent_folder_id": serde_json::Value::Null
         }))
         .await;
-        
+
     // Assert that the move operation was successful
     res_move.assert_status_ok();
 
@@ -122,11 +122,11 @@ async fn test_create_and_move_folder() {
         .get("/api/documents/tree")
         .add_header("Authorization", format!("Bearer {}", token))
         .await;
-        
+
     // Parse the updated tree response
     let tree2 = res_tree2.json::<serde_json::Value>();
     let folders2 = tree2["folders"].as_array().unwrap();
-    
+
     // Find both folders in the updated tree
     let r1 = folders2
         .iter()

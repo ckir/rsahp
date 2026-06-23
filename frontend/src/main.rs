@@ -12,7 +12,7 @@ mod ui;
 fn main() -> Result<(), eframe::Error> {
     // Create a rolling file appender for daily log rotation.
     let file_appender = RollingFileAppender::new(Rotation::DAILY, "logs", "rsahp_frontend.log");
-    
+
     // Create a non-blocking writer for the file appender.
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
@@ -28,7 +28,7 @@ fn main() -> Result<(), eframe::Error> {
 
     // Load the application configuration.
     let config = config::AppConfig::load();
-    
+
     // Check if GPU usage is enabled in the configuration.
     let use_gpu = config.use_gpu.unwrap_or(false);
 

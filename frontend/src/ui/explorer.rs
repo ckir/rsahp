@@ -40,7 +40,7 @@ impl Node {
             Node::File(f) => f.id,
         }
     }
-    
+
     /// Returns the name of the node.
     pub fn name(&self) -> &str {
         match self {
@@ -48,7 +48,7 @@ impl Node {
             Node::File(f) => &f.name,
         }
     }
-    
+
     /// Recursively attempts to remove a node by its ID.
     pub fn remove(&mut self, id: usize) -> Option<Node> {
         match self {
@@ -69,7 +69,7 @@ impl Node {
             Node::File(_) => None,
         }
     }
-    
+
     /// Recursively attempts to insert a node at a specific position under a parent ID.
     pub fn insert(
         &mut self,
@@ -325,7 +325,7 @@ pub fn render(
                 .headers
                 .insert("Authorization", &format!("Bearer {}", token));
         }
-        
+
         let ctx_clone = ctx.clone();
         // Execute the background fetch.
         ehttp::fetch(request, move |result| {
@@ -369,7 +369,7 @@ pub fn render(
             next_id: &mut usize,
         ) -> Vec<Node> {
             let mut children = Vec::new();
-            
+
             // Build subfolders.
             for folder in &dto.folders {
                 if folder.parent_folder_id == parent_folder_id {
@@ -384,7 +384,7 @@ pub fn render(
                     }));
                 }
             }
-            
+
             // Build documents within the folder.
             for doc in &dto.documents {
                 if doc.folder_id == parent_folder_id {
@@ -435,7 +435,7 @@ pub fn render(
                         .headers
                         .insert("Authorization", &format!("Bearer {}", token));
                 }
-                
+
                 // Clear and set content-type headers.
                 request
                     .headers
@@ -446,10 +446,10 @@ pub fn render(
                     .headers
                     .retain(|(k, _)| k.to_lowercase() != "content-type");
                 request.headers.insert("Content-Type", "application/json");
-                
+
                 let ctx_clone = ctx.clone();
                 state.import_status = Some("Importing...".to_string());
-                
+
                 // Execute the import request.
                 ehttp::fetch(request, move |result| {
                     match result {
@@ -461,7 +461,7 @@ pub fn render(
                     ctx_clone.request_repaint();
                 });
             }
-            
+
             // Display any import status message.
             if let Some(status) = &state.import_status {
                 ui.label(status);
@@ -471,7 +471,7 @@ pub fn render(
             // Render the tree view.
             egui::ScrollArea::both().show(ui, |ui| {
                 let mut context_menu_actions = Vec::<ContextMenuActions>::new();
-                
+
                 // Construct and display the tree using egui_ltreeview.
                 let (_, actions) = TreeView::new(ui.make_persistent_id("explorer_tree"))
                     .allow_drag_and_drop(true)
@@ -480,7 +480,7 @@ pub fn render(
                     });
 
                 let mut docs_to_open = Vec::new();
-                
+
                 // Handle tree view interactions (moves and activations).
                 for action in actions {
                     match action {
@@ -563,7 +563,7 @@ pub fn render(
                         _ => {}
                     }
                 }
-                
+
                 // Add activated documents to the global list.
                 open_documents.extend(docs_to_open);
 
@@ -675,19 +675,19 @@ pub fn render(
                         });
                         let id = state.next_id;
                         state.next_id += 1;
-                        
+
                         // Insert the node locally.
                         let _ = state.tree.insert(parent_id, position, leaf);
-                        
+
                         // Select the newly created file.
                         state.tree_view_state.set_selected(vec![id]);
-                        
+
                         // Automatically open the new document.
                         open_documents.push(DocumentState::new(doc_id as i32, &name));
                         state.modal_state = None;
                     } else {
                         // Reject submission if empty.
-                        submitted = false; 
+                        submitted = false;
                     }
                 }
                 ModalAction::AddDir(parent_id, position) => {
@@ -702,7 +702,7 @@ pub fn render(
                         });
                         let id = state.next_id;
                         state.next_id += 1;
-                        
+
                         // Insert the directory locally.
                         let _ = state.tree.insert(parent_id, position, dir);
                         state.tree_view_state.set_selected(vec![id]);
@@ -741,7 +741,7 @@ pub fn render(
                         state.modal_state = None;
                     } else {
                         // Reject submission if empty.
-                        submitted = false; 
+                        submitted = false;
                     }
                 }
             }

@@ -23,7 +23,7 @@ const JWT_SECRET: &[u8] = b"super-secret-key-change-in-production";
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     /// Subject (user ID)
-    pub sub: i32, 
+    pub sub: i32,
     /// Expiration time
     pub exp: usize,
 }

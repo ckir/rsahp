@@ -1,4 +1,4 @@
-//! This module handles the core functionality of the document editing window, 
+//! This module handles the core functionality of the document editing window,
 //! including criteria hierarchy, pairwise comparisons, and result aggregation.
 
 use eframe::egui;
@@ -142,7 +142,7 @@ pub enum CriteriaModalAction {
     /// Confirm deletion of a node (ID, Node Type).
     ConfirmDelete(usize, String),
     /// Add a child node (Parent ID, Position, Node Type).
-    AddChild(usize, DirPosition, String), 
+    AddChild(usize, DirPosition, String),
     /// Rename a node (ID, Node Type).
     Rename(usize, String),
     /// Edit the cost of a node (ID, Node Type).
@@ -168,9 +168,9 @@ pub struct DocumentState {
     /// The currently active UI tab.
     pub active_tab: DocumentTab,
     /// The aggregation mode (e.g., "AIJ" or "AIP").
-    pub aggregation_mode: String, 
+    pub aggregation_mode: String,
     /// The input mode for comparisons ("Wizard" or "Scrolling").
-    pub input_mode: String,       
+    pub input_mode: String,
     /// Status message for save operations.
     pub save_status: Option<String>,
     /// Map of pairwise comparisons: (Node A ID, Node B ID) -> Saaty Value.
@@ -392,7 +392,7 @@ pub fn save_document(
     }
 
     let mut comparisons = Vec::new();
-    
+
     // Map existing pairwise comparisons to ComparisonModels.
     for (&(a, b), &val) in &state.saaty_values {
         /// Helper function to find the parent node ID for a given child node ID.
@@ -407,7 +407,7 @@ pub fn save_document(
             }
             None
         }
-        
+
         // Resolve parent ID, defaulting to the goal node.
         let parent_id = find_parent(&state.criteria, a).unwrap_or(goal_id as usize);
 
@@ -440,7 +440,7 @@ pub fn save_document(
     // Serialize payload and execute the save request.
     if let Ok(body) = serde_json::to_vec(&export) {
         let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
-        
+
         // Clean up any old content-type headers and set the correct one.
         request
             .headers
@@ -451,16 +451,16 @@ pub fn save_document(
             .headers
             .retain(|(k, _)| k.to_lowercase() != "content-type");
         request.headers.insert("Content-Type", "application/json");
-        
+
         // Add authorization header if a token is present.
         if let Some(token) = jwt_token {
             request
                 .headers
                 .insert("Authorization", &format!("Bearer {}", token));
         }
-        
+
         let ctx_clone = ctx.clone();
-        
+
         // Update UI state to show saving status.
         state.save_status = Some("Saving...".to_string());
         state.is_modified = false;
@@ -621,7 +621,7 @@ pub fn render(
         if ui.button("💾 Save").clicked() {
             save_document(state, api_url, ui.ctx(), jwt_token);
         }
-        
+
         // Save as New Version button.
         if ui.button("📄 Save as New Version").clicked() {
             let url = format!("{}/{}/duplicate", api_url, state.id);
@@ -646,7 +646,7 @@ pub fn render(
                 ctx.request_repaint();
             });
         }
-        
+
         // Export JSON button.
         if ui.button("📤 Export JSON").clicked()
             && let Some(path) = rfd::FileDialog::new()
@@ -892,7 +892,7 @@ pub fn render(
                                     ui.close();
                                 }
                             });
-                            
+
                             // Align the edit cost controls to the right.
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
@@ -1055,7 +1055,7 @@ pub fn render(
                                 state.modal_state = None;
                             } else {
                                 // Keep open if empty.
-                                submitted = false; 
+                                submitted = false;
                             }
                         }
                         CriteriaModalAction::Rename(id, _) => {
@@ -1066,7 +1066,7 @@ pub fn render(
                                 state.modal_state = None;
                             } else {
                                 // Keep open if empty.
-                                submitted = false; 
+                                submitted = false;
                             }
                         }
                         CriteriaModalAction::EditCost(id, _) => {
@@ -1081,7 +1081,7 @@ pub fn render(
                                 state.modal_state = None;
                             } else {
                                 // Keep open if invalid number.
-                                submitted = false; 
+                                submitted = false;
                             }
                         }
                     }
@@ -1123,7 +1123,7 @@ pub fn render(
                     .filter(|c| c.node_type == "Criteria")
                     .collect();
                 let n = criteria_children.len();
-                
+
                 // Only generate combinations if there are at least two children.
                 if n >= 2 {
                     let parent_name = if node.id == 0 {
@@ -1153,7 +1153,7 @@ pub fn render(
                     }
                     comps.push((group_title, group_comps));
                 }
-                
+
                 // Recursively drill down the tree.
                 for child in criteria_children {
                     generate_phase1(child, comps, goal_text);
@@ -1210,7 +1210,7 @@ pub fn render(
             for (g_title, comps) in &grouped_comparisons {
                 if comps.is_empty() {
                     continue; // Skip section headers
-                } 
+                }
                 for (title, id1, id2) in comps {
                     flat_comparisons.push((g_title.clone(), title.clone(), *id1, *id2));
                 }
@@ -1400,7 +1400,7 @@ pub fn render(
                     for (i, crit) in top_criteria.iter().enumerate() {
                         let crit_weight = 1.0 / (top_criteria.len() as f64);
                         // Mock math to generate a deterministic profile score.
-                        let profile_score = ((i + cand.id) as f64 % 3.0 + 1.0) / 5.0; 
+                        let profile_score = ((i + cand.id) as f64 % 3.0 + 1.0) / 5.0;
                         mock_alignment += crit_weight * profile_score;
                         criteria_scores.insert(crit.id, profile_score);
                     }
@@ -1663,7 +1663,7 @@ pub fn render(
                 });
 
                 ui.separator();
-                
+
                 // Save Assignments button and network logic.
                 if ui.button("Save Assignments").clicked() && state.assignments_save_rx.is_none() {
                     let url = format!("{}/{}/assignments", api_url, state.id);
@@ -1674,7 +1674,7 @@ pub fn render(
                                 .headers
                                 .insert("Authorization", &format!("Bearer {}", token));
                         }
-                        
+
                         // Adjust headers.
                         request
                             .headers
@@ -1689,7 +1689,7 @@ pub fn render(
                         let (tx, rx) = std::sync::mpsc::channel();
                         state.assignments_save_rx = Some(rx);
                         let ctx_clone = ui.ctx().clone();
-                        
+
                         // Execute request.
                         ehttp::fetch(request, move |result| {
                             let _ = tx.send(result.is_ok());

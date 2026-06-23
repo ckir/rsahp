@@ -209,7 +209,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
             "{}/admin/groups",
             api_url.replace("/documents", "")
         ));
-        
+
         // Add authorization headers if token is present.
         if let Some(token) = jwt_token {
             req1.headers
@@ -219,7 +219,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
         }
 
         let ctx_clone = ctx.clone();
-        
+
         // Execute the first fetch request (users).
         ehttp::fetch(req1, move |res1| {
             // Process the response for users.
@@ -246,7 +246,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                     (Ok(users), Ok(groups)) => Ok((users, groups)),
                     (Err(e), _) | (_, Err(e)) => Err(e),
                 };
-                
+
                 // Send the combined result back to the main thread.
                 let _ = tx.send(combined);
                 // Request a UI repaint to process the result.
@@ -407,7 +407,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 .find(|g| g.id == Some(id))
                                 .map(|g| g.name.clone())
                                 .unwrap_or_default();
-                            
+
                             // Prompt for renaming the group.
                             state.modal_state = Some(ModalState {
                                 action: ModalAction::RenameGroup(id),
@@ -457,7 +457,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
         ui.add_space(10.0);
 
         let row_height = 24.0;
-        
+
         // Define the table structure for user data.
         let table = TableBuilder::new(ui)
             .striped(true)
@@ -550,7 +550,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                     let (tx, rx) = std::sync::mpsc::channel();
                                     state.action_rx = Some(rx);
                                     let ctx_clone = ctx.clone();
-                                    
+
                                     // Execute the request.
                                     ehttp::fetch(req, move |_| {
                                         let _ = tx.send(true);
@@ -692,7 +692,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                         let (tx, rx) = std::sync::mpsc::channel();
                         state.action_rx = Some(rx);
                         let ctx_clone = ctx.clone();
-                        
+
                         // Execute the request.
                         ehttp::fetch(req, move |_| {
                             let _ = tx.send(true);
@@ -719,7 +719,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 req.headers
                                     .insert("Authorization", &format!("Bearer {}", token));
                             }
-                            
+
                             // Adjust headers.
                             req.headers
                                 .headers
@@ -728,11 +728,11 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 .headers
                                 .retain(|(k, _)| k.to_lowercase() != "content-type");
                             req.headers.insert("Content-Type", "application/json");
-                            
+
                             let (tx, rx) = std::sync::mpsc::channel();
                             state.action_rx = Some(rx);
                             let ctx_clone = ctx.clone();
-                            
+
                             // Execute the request.
                             ehttp::fetch(req, move |_| {
                                 let _ = tx.send(true);
@@ -742,7 +742,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                         state.modal_state = None;
                     } else if modal.input_name.trim().is_empty() {
                         // Reject submission if name is empty.
-                        submitted = false; 
+                        submitted = false;
                     }
                 }
                 ModalAction::RenameGroup(id) => {
@@ -768,7 +768,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                     req.headers
                                         .insert("Authorization", &format!("Bearer {}", token));
                                 }
-                                
+
                                 // Adjust headers.
                                 req.headers
                                     .headers
@@ -777,11 +777,11 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                     .headers
                                     .retain(|(k, _)| k.to_lowercase() != "content-type");
                                 req.headers.insert("Content-Type", "application/json");
-                                
+
                                 let (tx, rx) = std::sync::mpsc::channel();
                                 state.action_rx = Some(rx);
                                 let ctx_clone = ctx.clone();
-                                
+
                                 // Execute the request.
                                 ehttp::fetch(req, move |_| {
                                     let _ = tx.send(true);
@@ -792,7 +792,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                         state.modal_state = None;
                     } else if modal.input_name.trim().is_empty() {
                         // Reject submission if name is empty.
-                        submitted = false; 
+                        submitted = false;
                     }
                 }
                 ModalAction::AddUser => {
@@ -818,7 +818,7 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 req.headers
                                     .insert("Authorization", &format!("Bearer {}", token));
                             }
-                            
+
                             // Adjust headers.
                             req.headers
                                 .headers
@@ -827,11 +827,11 @@ pub fn render(ctx: &egui::Context, state: &mut AdminState, api_url: &str, jwt_to
                                 .headers
                                 .retain(|(k, _)| k.to_lowercase() != "content-type");
                             req.headers.insert("Content-Type", "application/json");
-                            
+
                             let (tx, rx) = std::sync::mpsc::channel();
                             state.action_rx = Some(rx);
                             let ctx_clone = ctx.clone();
-                            
+
                             // Execute the request.
                             ehttp::fetch(req, move |_| {
                                 let _ = tx.send(true);
