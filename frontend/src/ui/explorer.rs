@@ -1,6 +1,7 @@
 //! This module renders the project explorer, displaying the user's folders and documents in a tree view.
 
 use super::document_window::DocumentState;
+use common::{DocumentDto, TreeDto, FolderDto};
 use eframe::egui;
 use egui_ltreeview::{Action, DirPosition, NodeBuilder, TreeView, TreeViewState};
 
@@ -151,19 +152,11 @@ pub struct ExplorerState {
     pub fetched_initial: bool,
     /// Receiver channel for the asynchronous tree data response.
     pub tree_rx: Option<std::sync::mpsc::Receiver<TreeDto>>,
+    /// Receiver channel for new document creation.
+    pub new_doc_rx: Option<std::sync::mpsc::Receiver<(usize, DocumentDto)>>,
 }
 
 /// Data transfer object for a document.
-#[derive(serde::Deserialize, Clone)]
-pub struct DocumentModel {
-    /// The document's ID.
-    pub id: i32,
-    /// The document's name.
-    pub name: String,
-    /// The ID of the folder containing the document, if any.
-    pub folder_id: Option<i32>,
-}
-
 /// Data transfer object for a folder.
 #[derive(serde::Deserialize, Clone)]
 pub struct FolderModel {
@@ -176,14 +169,6 @@ pub struct FolderModel {
 }
 
 /// Data transfer object for the file system tree.
-#[derive(serde::Deserialize, Clone)]
-pub struct TreeDto {
-    /// List of folders in the tree.
-    pub folders: Vec<FolderModel>,
-    /// List of documents in the tree.
-    pub documents: Vec<DocumentModel>,
-}
-
 /// Default implementation for `ExplorerState`.
 impl Default for ExplorerState {
     fn default() -> Self {
@@ -202,6 +187,7 @@ impl Default for ExplorerState {
             modal_state: None,
             fetched_initial: false,
             tree_rx: None,
+            new_doc_rx: None,
         }
     }
 }
@@ -299,6 +285,7 @@ fn show_node(
 
 /// Renders the file explorer panel.
 pub fn render(
+    ui: &mut egui::Ui,
     ctx: &egui::Context,
     state: &mut ExplorerState,
     open_documents: &mut Vec<DocumentState>,
@@ -411,12 +398,30 @@ pub fn render(
         state.tree_rx = None;
     }
 
-    // Render the left side panel.
-    #[allow(deprecated)]
-    egui::SidePanel::left("explorer_panel")
-        .resizable(true)
-        .default_width(250.0)
-        .show(ctx, |ui| {
+    // Process new document creation.
+    if let Some(rx) = &state.new_doc_rx
+        && let Ok((ui_id, doc)) = rx.try_recv()
+    {
+        // Recursively find the file node and update its document_id.
+        fn update_doc_id(node: &mut Node, target_id: usize, doc_id: usize) {
+            match node {
+                Node::File(f) if f.id == target_id => {
+                    f.document_id = Some(doc_id);
+                }
+                Node::Directory(d) => {
+                    for child in &mut d.children {
+                        update_doc_id(child, target_id, doc_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+        update_doc_id(&mut state.tree, ui_id, doc.id as usize);
+        open_documents.push(DocumentState::new(doc.id, &doc.name));
+    }
+
+    // Render the explorer tree inside the given ui.
+    ui.vertical(|ui| {
             ui.heading("Project Explorer");
             ui.separator();
 
@@ -666,12 +671,11 @@ pub fn render(
                     // Ensure name is not empty.
                     if !modal.input_name.trim().is_empty() {
                         let name = modal.input_name.trim().to_string();
-                        let doc_id = state.next_id;
-                        // Create the new file node.
+                        // Initially we don't have the real doc ID, use None.
                         let leaf = Node::File(File {
                             id: state.next_id,
                             name: name.clone(),
-                            document_id: Some(doc_id),
+                            document_id: None,
                         });
                         let id = state.next_id;
                         state.next_id += 1;
@@ -682,8 +686,55 @@ pub fn render(
                         // Select the newly created file.
                         state.tree_view_state.set_selected(vec![id]);
 
-                        // Automatically open the new document.
-                        open_documents.push(DocumentState::new(doc_id as i32, &name));
+                        // Send an API request to persist the document creation.
+                        let real_parent_id = if parent_id == 0 {
+                            None
+                        } else {
+                            Some(parent_id as i32)
+                        };
+                        let payload = format!(
+                            r#"{{"name":"{}","owner_id":1,"aggregation_method":"AIJ","folder_id":{}}}"#,
+                            name,
+                            match real_parent_id {
+                                Some(pid) => pid.to_string(),
+                                None => "null".to_string(),
+                            }
+                        );
+                        let mut url = api_url.to_string();
+                        if url.ends_with('/') {
+                            url.pop();
+                        }
+                        
+                        let mut request = ehttp::Request::post(url, payload.into_bytes());
+                        if let Some(token) = jwt_token {
+                            request
+                                .headers
+                                .insert("Authorization", &format!("Bearer {}", token));
+                        }
+                        // Set proper headers
+                        request
+                            .headers
+                            .headers
+                            .retain(|(k, _)| k.to_lowercase() != "content-type");
+                        request.headers.insert("Content-Type", "application/json");
+
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        state.new_doc_rx = Some(rx);
+                        let ctx_clone = ctx.clone();
+                        
+                        ehttp::fetch(request, move |result| {
+                            if let Ok(res) = result {
+                                if res.status == 200 {
+                                    if let Ok(doc) = serde_json::from_slice::<DocumentDto>(&res.bytes) {
+                                        let _ = tx.send((id, doc));
+                                    }
+                                } else {
+                                    tracing::error!("Create doc failed: Status: {}, Body: {:?}", res.status, res.text());
+                                }
+                            }
+                            ctx_clone.request_repaint();
+                        });
+
                         state.modal_state = None;
                     } else {
                         // Reject submission if empty.

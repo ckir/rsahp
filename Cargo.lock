@@ -674,6 +674,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "clap",
+ "common",
  "jsonwebtoken",
  "nalgebra",
  "sea-orm",
@@ -1129,6 +1130,14 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
+]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
 ]
 
 [[package]]
@@ -2059,7 +2068,10 @@ dependencies = [
 name = "frontend"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "backend",
  "clap",
+ "common",
  "eframe",
  "egui",
  "egui_extras",
@@ -2068,6 +2080,7 @@ dependencies = [
  "ehttp",
  "reqwest",
  "rfd",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",

@@ -87,6 +87,7 @@ impl Default for UserDashboardState {
 pub fn render(
     ctx: &egui::Context,
     state: &mut UserDashboardState,
+    explorer_state: &mut crate::ui::explorer::ExplorerState,
     open_documents: &mut Vec<DocumentState>,
     api_url: &str,
     jwt_token: Option<&str>,
@@ -195,6 +196,14 @@ pub fn render(
     // Flag indicating whether a manual refresh was triggered.
     let mut needs_refresh = false;
 
+    // Render the explorer tree in a right side panel.
+    egui::SidePanel::right("explorer_panel")
+        .resizable(true)
+        .default_width(300.0)
+        .show(ctx, |ui| {
+            crate::ui::explorer::render(ui, ctx, explorer_state, open_documents, api_url, jwt_token);
+        });
+
     // Render the main central panel for the dashboard.
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.add_space(10.0);
@@ -216,120 +225,59 @@ pub fn render(
         });
         ui.separator();
 
-        // Render the split layout for evaluation tasks and owned documents.
-        ui.horizontal(|ui| {
-            // Left Panel: Documents to Evaluate
-            ui.vertical(|ui| {
-                // Set the width to half the available space.
-                ui.set_width(ui.available_width() / 2.0 - 10.0);
-                ui.heading("Documents to Evaluate");
+        ui.vertical(|ui| {
+            ui.heading("Documents to Evaluate");
 
-                // Display the count of pending tasks.
-                ui.label(format!(
-                    "Pending Evaluation Tasks ({})",
-                    evaluation_tasks.len()
-                ));
-                ui.separator();
-
-                // Scrollable area for evaluation tasks.
-                egui::ScrollArea::vertical()
-                    .id_source("evaluations_scroll")
-                    .show(ui, |ui| {
-                        if state.fetch_in_progress {
-                            // Display spinner while loading.
-                            ui.spinner();
-                        } else if evaluation_tasks.is_empty() {
-                            // Display empty state message.
-                            ui.label("No pending evaluations.");
-                        } else {
-                            // Render a group for each task.
-                            for doc in evaluation_tasks {
-                                ui.group(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(format!("📋 {}", doc.name));
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                // Handle clicking the evaluate button.
-                                                if ui.button("Evaluate").clicked() {
-                                                    // Check if the document is already open.
-                                                    let mut exists = false;
-                                                    for open_doc in open_documents.iter_mut() {
-                                                        if open_doc.id == doc.id {
-                                                            exists = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    // If not, open it.
-                                                    if !exists {
-                                                        open_documents.push(DocumentState::new(
-                                                            doc.id, &doc.name,
-                                                        ));
-                                                    }
-                                                }
-                                            },
-                                        );
-                                    });
-                                });
-                            }
-                        }
-                    });
-            });
-
+            // Display the count of pending tasks.
+            ui.label(format!(
+                "Pending Evaluation Tasks ({})",
+                evaluation_tasks.len()
+            ));
             ui.separator();
 
-            // Right Panel: My Documents
-            ui.vertical(|ui| {
-                ui.heading("My Documents");
-
-                // Display the count of owned projects.
-                ui.label(format!("Projects You Own ({})", my_documents.len()));
-                ui.separator();
-
-                // Scrollable area for owned projects.
-                egui::ScrollArea::vertical()
-                    .id_source("owned_projects_scroll")
-                    .show(ui, |ui| {
-                        if state.fetch_in_progress {
-                            // Display spinner while loading.
-                            ui.spinner();
-                        } else if my_documents.is_empty() {
-                            // Display empty state message.
-                            ui.label("You do not own any projects.");
-                        } else {
-                            // Render a group for each owned document.
-                            for doc in my_documents {
-                                ui.group(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(format!("📁 {}", doc.name));
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                // Handle clicking the view/edit button.
-                                                if ui.button("View / Edit").clicked() {
-                                                    // Check if the document is already open.
-                                                    let mut exists = false;
-                                                    for open_doc in open_documents.iter_mut() {
-                                                        if open_doc.id == doc.id {
-                                                            exists = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    // If not, open it.
-                                                    if !exists {
-                                                        open_documents.push(DocumentState::new(
-                                                            doc.id, &doc.name,
-                                                        ));
+            // Scrollable area for evaluation tasks.
+            egui::ScrollArea::vertical()
+                .id_source("evaluations_scroll")
+                .show(ui, |ui| {
+                    if state.fetch_in_progress {
+                        // Display spinner while loading.
+                        ui.spinner();
+                    } else if evaluation_tasks.is_empty() {
+                        // Display empty state message.
+                        ui.label("No pending evaluations.");
+                    } else {
+                        // Render a group for each task.
+                        for doc in evaluation_tasks {
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("📋 {}", doc.name));
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            // Handle clicking the evaluate button.
+                                            if ui.button("Evaluate").clicked() {
+                                                // Check if the document is already open.
+                                                let mut exists = false;
+                                                for open_doc in open_documents.iter_mut() {
+                                                    if open_doc.id == doc.id {
+                                                        exists = true;
+                                                        break;
                                                     }
                                                 }
-                                            },
-                                        );
-                                    });
+                                                // If not, open it.
+                                                if !exists {
+                                                    open_documents.push(DocumentState::new(
+                                                        doc.id, &doc.name,
+                                                    ));
+                                                }
+                                            }
+                                        },
+                                    );
                                 });
-                            }
+                            });
                         }
-                    });
-            });
+                    }
+                });
         });
     });
 

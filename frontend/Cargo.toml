@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
+common = { version = "0.1.0", path = "../common" }
 eframe = "0.34.3"
 egui = "0.34.3"
 egui_extras = "0.34.3"
@@ -20,4 +21,7 @@ tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 
 [dev-dependencies]
+axum = "0.8.9"
 egui_kittest = "0.34.3"
+backend = { path = "../backend" }
+sea-orm = { version = "1.1.20", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }

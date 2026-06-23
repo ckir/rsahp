@@ -1,7 +1,7 @@
 //! Document API endpoints.
 //!
 //! This module provides routes and handlers for managing documents,
-//! their node hierarchies, comparisons, folders, and export/import functionality.
+//! their node hierarchies, comparisons: comparisons.into_iter().map(Into::into).collect(), folders, and export/import functionality.
 
 use axum::{
     Json, Router,
@@ -9,11 +9,54 @@ use axum::{
     http::StatusCode,
     routing::{delete, get, post},
 };
+
+use sea_orm::Set;
+
+impl From<document::Model> for common::DocumentDto {
+    fn from(m: document::Model) -> Self {
+        Self {
+            id: m.id,
+            name: m.name,
+            owner_id: m.owner_id,
+            version: m.version,
+            aggregation_method: m.aggregation_method,
+            folder_id: m.folder_id,
+            created_at: m.created_at,
+        }
+    }
+}
+
+impl From<node::Model> for common::NodeDto {
+    fn from(m: node::Model) -> Self {
+        Self {
+            id: m.id,
+            document_id: m.document_id,
+            parent_node_id: m.parent_node_id,
+            name: m.name,
+            node_type: m.node_type,
+            cost: m.cost,
+        }
+    }
+}
+
+impl From<comparison::Model> for common::ComparisonDto {
+    fn from(m: comparison::Model) -> Self {
+        Self {
+            id: m.id,
+            document_id: m.document_id,
+            respondent_id: m.respondent_id,
+            parent_node_id: m.parent_node_id,
+            node_a_id: m.node_a_id,
+            node_b_id: m.node_b_id,
+            saaty_value: m.saaty_value,
+        }
+    }
+}
+
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    TransactionTrait,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::api_auth::Claims;
 use crate::entity::{
@@ -57,7 +100,7 @@ pub fn router() -> Router<DatabaseConnection> {
 }
 
 /// Data transfer object for document creation and updates.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct DocumentDto {
     /// Document name
     pub name: String,
@@ -87,7 +130,7 @@ pub async fn create_document(
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
     // Parse the JSON payload
-    let payload: DocumentDto = serde_json::from_slice(&body)
+    let payload: common::CreateDocumentDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
     // Prepare the active model for insertion
@@ -177,7 +220,7 @@ pub async fn delete_document(
 }
 
 /// Data transfer object for document assignments (users and groups).
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct DocumentAssignmentsDto {
     /// Users directly assigned to the document
     pub user_ids: Vec<i32>,
@@ -264,7 +307,7 @@ pub async fn set_document_assignments(
 }
 
 /// Data transfer object for node creation and updates.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct NodeDto {
     /// Optional parent node ID for hierarchical nodes
     pub parent_node_id: Option<i32>,
@@ -369,7 +412,7 @@ pub async fn delete_node(
 }
 
 /// Data transfer object for comparison creations and updates.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ComparisonDto {
     /// ID of the user giving the rating
     pub respondent_id: i32,
@@ -427,21 +470,20 @@ pub async fn create_comparison(
 }
 
 /// Data structure representing a fully exported document tree.
-#[derive(Serialize, Deserialize)]
-pub struct ExportedDocument {
+/* pub struct common::ExportedDocumentDto {
     /// Core document record
     pub document: document::Model,
     /// Flat list of nodes comprising the structure
     pub nodes: Vec<node::Model>,
     /// Set of evaluation comparisons
     pub comparisons: Vec<comparison::Model>,
-}
+} */
 
 /// Exports a document to JSON including all nested nodes and comparisons.
 pub async fn export_document(
     State(db): State<DatabaseConnection>,
     Path(id): Path<i32>,
-) -> Result<Json<ExportedDocument>, (StatusCode, String)> {
+) -> Result<Json<common::ExportedDocumentDto>, (StatusCode, String)> {
     // Find the main document object
     let doc = document::Entity::find_by_id(id)
         .one(&db)
@@ -463,21 +505,29 @@ pub async fn export_document(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Collect into ExportedDocument and output
-    Ok(Json(ExportedDocument {
-        document: doc,
-        nodes,
-        comparisons,
+    // Collect into common::ExportedDocumentDto and output
+    Ok(Json(common::ExportedDocumentDto {
+        document: doc.into(),
+        nodes: nodes.into_iter().map(Into::into).collect(),
+        comparisons: comparisons.into_iter().map(Into::into).collect(),
     }))
 }
 
 /// Imports a full document payload, preserving hierarchical relationships.
 pub async fn import_document(
     State(db): State<DatabaseConnection>,
-    Json(payload): Json<ExportedDocument>,
+    Json(payload): Json<common::ExportedDocumentDto>,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
     // Start constructing the imported document
-    let mut doc_am = payload.document.into_active_model();
+    let mut doc_am = document::ActiveModel {
+        name: Set(payload.document.name),
+        owner_id: Set(payload.document.owner_id),
+        version: Set(payload.document.version),
+        aggregation_method: Set(payload.document.aggregation_method),
+        folder_id: Set(payload.document.folder_id),
+        created_at: Set(payload.document.created_at),
+        ..Default::default()
+    };
     // Do not preserve the primary key
     doc_am.id = sea_orm::ActiveValue::NotSet;
 
@@ -507,7 +557,14 @@ pub async fn import_document(
 
             if can_insert {
                 let pid_opt = node.parent_node_id;
-                let mut am = node.into_active_model();
+                let mut am = node::ActiveModel {
+                    document_id: Set(node.document_id),
+                    parent_node_id: Set(node.parent_node_id),
+                    name: Set(node.name),
+                    node_type: Set(node.node_type),
+                    cost: Set(node.cost),
+                    ..Default::default()
+                };
 
                 // Clear the original ID, set the new document ID reference
                 am.id = sea_orm::ActiveValue::NotSet;
@@ -549,7 +606,15 @@ pub async fn import_document(
 
     // Follow up inserting comparisons mapping references
     for comp in payload.comparisons {
-        let mut am = comp.into_active_model();
+        let mut am = comparison::ActiveModel {
+            document_id: Set(comp.document_id),
+            respondent_id: Set(comp.respondent_id),
+            parent_node_id: Set(comp.parent_node_id),
+            node_a_id: Set(comp.node_a_id),
+            node_b_id: Set(comp.node_b_id),
+            saaty_value: Set(comp.saaty_value),
+            ..Default::default()
+        };
 
         // Wipe original IDs and map to new document ID
         am.id = sea_orm::ActiveValue::NotSet;
@@ -602,7 +667,7 @@ pub async fn save_full_document(
     body: axum::body::Bytes,
 ) -> Result<Json<document::Model>, (StatusCode, String)> {
     // Parse the full payload
-    let payload: ExportedDocument = serde_json::from_slice(&body)
+    let payload: common::ExportedDocumentDto = serde_json::from_slice(&body)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)))?;
 
     // Look for existing document record
@@ -672,7 +737,14 @@ pub async fn save_full_document(
 
             if can_insert {
                 let pid_opt = node.parent_node_id;
-                let mut am = node.into_active_model();
+                let mut am = node::ActiveModel {
+                    document_id: Set(node.document_id),
+                    parent_node_id: Set(node.parent_node_id),
+                    name: Set(node.name),
+                    node_type: Set(node.node_type),
+                    cost: Set(node.cost),
+                    ..Default::default()
+                };
                 am.id = sea_orm::ActiveValue::NotSet;
                 am.document_id = Set(id);
 
@@ -709,7 +781,15 @@ pub async fn save_full_document(
 
     // Run over comparisons using constructed translations
     for comp in payload.comparisons {
-        let mut am = comp.into_active_model();
+        let mut am = comparison::ActiveModel {
+            document_id: Set(comp.document_id),
+            respondent_id: Set(comp.respondent_id),
+            parent_node_id: Set(comp.parent_node_id),
+            node_a_id: Set(comp.node_a_id),
+            node_b_id: Set(comp.node_b_id),
+            saaty_value: Set(comp.saaty_value),
+            ..Default::default()
+        };
         am.id = sea_orm::ActiveValue::NotSet;
         am.document_id = Set(id);
 
@@ -892,7 +972,7 @@ pub async fn duplicate_document(
 }
 
 /// Data transfer object for folder creation and updates.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct FolderDto {
     /// Folder name
     pub name: String,
@@ -989,7 +1069,7 @@ pub async fn delete_folder(
 }
 
 /// Data transfer object for moving a document to a different folder.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct MoveDocumentDto {
     /// Desired folder ID or None to move to root level
     pub folder_id: Option<i32>,
@@ -1027,7 +1107,7 @@ pub async fn move_document(
 }
 
 /// Data transfer object containing the full folder and document tree.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TreeDto {
     /// Comprehensive set of registered folders
     pub folders: Vec<folder::Model>,

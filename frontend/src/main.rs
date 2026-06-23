@@ -5,8 +5,8 @@ use eframe::egui;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-mod config;
-mod ui;
+use frontend::config::AppConfig;
+use frontend::ui::RsahpApp;
 
 /// The main function of the application.
 fn main() -> Result<(), eframe::Error> {
@@ -27,16 +27,13 @@ fn main() -> Result<(), eframe::Error> {
         .init();
 
     // Load the application configuration.
-    let config = config::AppConfig::load();
+    let (config, cli_args) = AppConfig::load();
 
-    // Check if GPU usage is enabled in the configuration.
-    let use_gpu = config.use_gpu.unwrap_or(false);
-
-    // Determine the hardware acceleration preference based on the configuration.
-    let hardware_acceleration = if use_gpu {
-        eframe::HardwareAcceleration::Preferred
-    } else {
+    // Determine the hardware acceleration preference based on the CLI flag.
+    let hardware_acceleration = if cli_args.disable_gpu {
         eframe::HardwareAcceleration::Off
+    } else {
+        eframe::HardwareAcceleration::Preferred
     };
 
     // Configure the native options for the eframe application window.
@@ -54,6 +51,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "AHP Group Decision System",
         options,
-        Box::new(move |_cc| Ok(Box::new(ui::RsahpApp::new(config)))),
+        Box::new(move |_cc| Ok(Box::new(RsahpApp::new(config)))),
     )
 }

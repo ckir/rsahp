@@ -16,9 +16,9 @@ pub struct CliArgs {
     #[arg(long)]
     pub api_url: Option<String>,
 
-    /// Optional flag to force GPU usage.
+    /// Optional flag to force CPU usage (disable GPU).
     #[arg(long)]
-    pub use_gpu: Option<bool>,
+    pub disable_gpu: bool,
 }
 
 /// The main configuration structure for the application.
@@ -26,8 +26,6 @@ pub struct CliArgs {
 pub struct AppConfig {
     /// The URL of the API server.
     pub api_url: Option<String>,
-    /// Whether to use GPU acceleration.
-    pub use_gpu: Option<bool>,
     /// The UI zoom scale factor.
     pub zoom_scale: Option<f32>,
 }
@@ -39,8 +37,6 @@ impl Default for AppConfig {
         Self {
             // Default API URL is None.
             api_url: None,
-            // Default GPU usage is None.
-            use_gpu: None,
             // Default zoom scale is 1.25.
             zoom_scale: Some(1.25),
         }
@@ -50,7 +46,7 @@ impl Default for AppConfig {
 /// Implementation of methods for `AppConfig`.
 impl AppConfig {
     /// Loads the configuration from the file and overrides with CLI arguments.
-    pub fn load() -> Self {
+    pub fn load() -> (Self, CliArgs) {
         // Parse the command-line arguments.
         let cli = CliArgs::parse();
 
@@ -58,7 +54,7 @@ impl AppConfig {
         let mut config = AppConfig::default();
 
         // Determine the configuration path, defaulting to "config.json".
-        let config_path = cli.config.unwrap_or_else(|| "config.json".to_string());
+        let config_path = cli.config.clone().unwrap_or_else(|| "config.json".to_string());
 
         // Attempt to read and parse the configuration file.
         if let Ok(content) = fs::read_to_string(&config_path)
@@ -69,17 +65,12 @@ impl AppConfig {
         }
 
         // Apply CLI overrides for API URL.
-        if let Some(url) = cli.api_url {
+        if let Some(url) = cli.api_url.clone() {
             config.api_url = Some(url);
         }
 
-        // Apply CLI overrides for GPU usage.
-        if let Some(gpu) = cli.use_gpu {
-            config.use_gpu = Some(gpu);
-        }
-
-        // Return the final configuration.
-        config
+        // Return the final configuration alongside CLI arguments.
+        (config, cli)
     }
 
     /// Saves the current configuration to the configuration file.

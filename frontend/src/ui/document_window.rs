@@ -1,6 +1,7 @@
 //! This module handles the core functionality of the document editing window,
 //! including criteria hierarchy, pairwise comparisons, and result aggregation.
 
+use common::{DocumentDto, NodeDto, ComparisonDto, ExportedDocumentDto, CreateDocumentDto};
 use eframe::egui;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -194,11 +195,11 @@ pub struct DocumentState {
     /// Indicates if the document data has been fully loaded.
     pub is_loaded: bool,
     /// Receiver channel for document load responses.
-    pub load_rx: Option<std::sync::mpsc::Receiver<Result<ExportedDocument, String>>>,
+    pub load_rx: Option<std::sync::mpsc::Receiver<Result<ExportedDocumentDto, String>>>,
     /// Receiver channel for document save responses.
     pub save_rx: Option<std::sync::mpsc::Receiver<bool>>,
     /// Receiver channel for document duplication responses.
-    pub duplicated_doc_rx: Option<std::sync::mpsc::Receiver<DocumentModel>>,
+    pub duplicated_doc_rx: Option<std::sync::mpsc::Receiver<DocumentDto>>,
     /// Current sorting column for results.
     pub sort_column: SortColumn,
     /// Sort direction for results.
@@ -293,59 +294,10 @@ impl DocumentState {
 }
 
 /// DTO for an entire exported document payload.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct ExportedDocument {
-    /// The document metadata.
-    pub document: DocumentModel,
-    /// The list of nodes (criteria/alternatives).
-    pub nodes: Vec<NodeModel>,
-    /// The list of pairwise comparisons.
-    pub comparisons: Vec<ComparisonModel>,
-}
-
 /// DTO representing document metadata.
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct DocumentModel {
-    pub id: i32,
-    pub name: String,
-    pub owner_id: i32,
-    pub version: i32,
-    pub aggregation_method: String,
-    pub created_at: String,
-    pub folder_id: Option<i32>,
-}
-
 /// DTO representing a single node.
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct NodeModel {
-    pub id: i32,
-    pub document_id: i32,
-    pub parent_node_id: Option<i32>,
-    pub name: String,
-    pub node_type: String,
-    pub cost: Option<f64>,
-}
-
 /// DTO representing a pairwise comparison result.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct ComparisonModel {
-    pub id: i32,
-    pub document_id: i32,
-    pub respondent_email: String,
-    pub parent_node_id: i32,
-    pub node_a_id: i32,
-    pub node_b_id: i32,
-    pub saaty_value: f64,
-}
-
 /// DTO for creating/updating document metadata.
-#[derive(Serialize)]
-pub struct DocumentDto {
-    pub name: String,
-    pub owner_id: i32,
-    pub aggregation_method: String,
-}
-
 /// Handles the logic for saving the current document state to the backend API.
 pub fn save_document(
     state: &mut DocumentState,
@@ -355,9 +307,9 @@ pub fn save_document(
 ) {
     let mut nodes = Vec::new();
 
-    // The root goal node is added manually with ID 0.
-    let goal_id = 0;
-    nodes.push(NodeModel {
+    // The root goal node is added manually using the criteria's own ID.
+    let goal_id = state.criteria.id as i32;
+    nodes.push(NodeDto {
         id: goal_id,
         document_id: state.id,
         parent_node_id: None,
@@ -370,9 +322,9 @@ pub fn save_document(
         cost: None,
     });
 
-    /// Helper function to recursively flatten the criteria tree into a list of NodeModels.
-    fn traverse(node: &CriteriaNode, doc_id: i32, parent_id: i32, out: &mut Vec<NodeModel>) {
-        out.push(NodeModel {
+    /// Helper function to recursively flatten the criteria tree into a list of NodeDtos.
+    fn traverse(node: &CriteriaNode, doc_id: i32, parent_id: i32, out: &mut Vec<NodeDto>) {
+        out.push(NodeDto {
             id: node.id as i32,
             document_id: doc_id,
             parent_node_id: Some(parent_id),
@@ -393,7 +345,7 @@ pub fn save_document(
 
     let mut comparisons = Vec::new();
 
-    // Map existing pairwise comparisons to ComparisonModels.
+    // Map existing pairwise comparisons to ComparisonDtos.
     for (&(a, b), &val) in &state.saaty_values {
         /// Helper function to find the parent node ID for a given child node ID.
         fn find_parent(node: &CriteriaNode, target: usize) -> Option<usize> {
@@ -411,10 +363,10 @@ pub fn save_document(
         // Resolve parent ID, defaulting to the goal node.
         let parent_id = find_parent(&state.criteria, a).unwrap_or(goal_id as usize);
 
-        comparisons.push(ComparisonModel {
+        comparisons.push(ComparisonDto {
             id: 0,
             document_id: state.id,
-            respondent_email: "test@example.com".to_string(),
+            respondent_id: 1, // default for now
             parent_node_id: parent_id as i32,
             node_a_id: a as i32,
             node_b_id: b as i32,
@@ -423,14 +375,14 @@ pub fn save_document(
     }
 
     // Construct the final exported payload.
-    let export = ExportedDocument {
-        document: DocumentModel {
+    let export = ExportedDocumentDto {
+        document: DocumentDto {
             id: state.id,
             name: state.title.clone(),
             owner_id: 1, // default owner for now
             version: state.version,
             aggregation_method: state.aggregation_mode.clone(),
-            created_at: "2026-06-21T00:00:00Z".to_string(),
+            created_at: "2026-06-21T00:00:00Z".parse().unwrap(),
             folder_id: None,
         },
         nodes,
@@ -439,6 +391,7 @@ pub fn save_document(
 
     // Serialize payload and execute the save request.
     if let Ok(body) = serde_json::to_vec(&export) {
+        tracing::info!("EXPORT PAYLOAD: {}", serde_json::to_string(&export).unwrap());
         let mut request = ehttp::Request::post(format!("{}/{}/full", api_url, state.id), body);
 
         // Clean up any old content-type headers and set the correct one.
@@ -518,7 +471,7 @@ pub fn render(
             if let Ok(res) = result {
                 if res.status >= 200 && res.status < 300 {
                     // Attempt to parse document data.
-                    match serde_json::from_slice::<ExportedDocument>(&res.bytes) {
+                    match serde_json::from_slice::<ExportedDocumentDto>(&res.bytes) {
                         Ok(data) => {
                             let _ = tx.send(Ok(data));
                         }
@@ -560,7 +513,7 @@ pub fn render(
                     state.goal = goal.name.clone();
 
                     /// Helper function to build the hierarchical tree from the flat nodes list.
-                    fn build_tree(nodes: &[NodeModel], parent_id: i32) -> Vec<CriteriaNode> {
+                    fn build_tree(nodes: &[NodeDto], parent_id: i32) -> Vec<CriteriaNode> {
                         let mut children = Vec::new();
                         for n in nodes.iter().filter(|n| n.parent_node_id == Some(parent_id)) {
                             children.push(CriteriaNode {
@@ -575,6 +528,7 @@ pub fn render(
                     }
 
                     // Populate the criteria tree.
+                    state.criteria.id = goal.id as usize;
                     state.criteria.children = build_tree(&data.nodes, goal.id);
 
                     // Update ID counter.
@@ -639,7 +593,7 @@ pub fn render(
 
             ehttp::fetch(request, move |result| {
                 if let Ok(res) = result
-                    && let Ok(new_doc) = serde_json::from_slice::<DocumentModel>(&res.bytes)
+                    && let Ok(new_doc) = serde_json::from_slice::<DocumentDto>(&res.bytes)
                 {
                     let _ = tx.send(new_doc);
                 }

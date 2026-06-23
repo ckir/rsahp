@@ -1,19 +1,23 @@
+//! Module explorer_1151.rs
 to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
 use eframe::egui;
 use super::document_window::DocumentState;
 use egui_ltreeview::{TreeView, TreeViewState, NodeBuilder, Action, DirPosition};
 
+/// Documentation for Node.
 pub enum Node {
     Directory(Directory),
     File(File),
 }
 
+/// Documentation for Directory.
 pub struct Directory {
     pub id: usize,
     pub name: String,
     pub children: Vec<Node>,
 }
 
+/// Documentation for File.
 pub struct File {
     pub id: usize,
     pub name: String,
@@ -21,18 +25,21 @@ pub struct File {
 }
 
 impl Node {
+    /// Documentation for id.
     pub fn id(&self) -> usize {
         match self {
             Node::Directory(d) => d.id,
             Node::File(f) => f.id,
         }
     }
+    /// Documentation for name.
     pub fn name(&self) -> &str {
         match self {
             Node::Directory(d) => &d.name,
             Node::File(f) => &f.name,
         }
     }
+    /// Documentation for remove.
     pub fn remove(&mut self, id: usize) -> Option<Node> {
         match self {
             Node::Directory(dir) => {
@@ -50,6 +57,7 @@ impl Node {
             Node::File(_) => None,
         }
     }
+    /// Documentation for insert.
     pub fn insert(&mut self, parent_id: usize, position: DirPosition<usize>, value: Node) -
 <truncated 13617 bytes>
                         let doc_id = state.next_id;

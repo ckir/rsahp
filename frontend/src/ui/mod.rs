@@ -3,8 +3,8 @@
 use eframe::egui;
 
 mod admin;
-mod auth;
-mod document_window;
+pub mod auth;
+pub mod document_window;
 mod explorer;
 mod taskbar;
 mod user_dashboard;
@@ -12,19 +12,19 @@ mod user_dashboard;
 /// The main state container for the Rsahp application.
 pub struct RsahpApp {
     /// Flag indicating whether the task list modal is visible.
-    show_task_list: bool,
+    pub show_task_list: bool,
     /// List of currently open documents in the application.
-    open_documents: Vec<document_window::DocumentState>,
+    pub open_documents: Vec<document_window::DocumentState>,
     /// State of the file explorer tree.
-    explorer_state: explorer::ExplorerState,
+    pub explorer_state: explorer::ExplorerState,
     /// Authentication state containing JWT token and user info.
-    auth_state: auth::AuthState,
+    pub auth_state: auth::AuthState,
     /// State of the admin management panel.
-    admin_state: admin::AdminState,
+    pub admin_state: admin::AdminState,
     /// State of the user dashboard and project overview.
-    user_dashboard_state: user_dashboard::UserDashboardState,
+    pub user_dashboard_state: user_dashboard::UserDashboardState,
     /// The application configuration loaded on startup.
-    config: crate::config::AppConfig,
+    pub config: crate::config::AppConfig,
 }
 
 impl RsahpApp {
@@ -113,6 +113,7 @@ impl RsahpApp {
             user_dashboard::render(
                 ctx,
                 &mut self.user_dashboard_state,
+                &mut self.explorer_state,
                 &mut self.open_documents,
                 &api_url,
                 self.auth_state.jwt_token.as_deref(),

@@ -1,12 +1,15 @@
+//! Module explorer_old.rs
 to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
 use eframe::egui;
 use super::document_window::DocumentState;
 
 #[derive(Default)]
+/// Documentation for ExplorerState.
 pub struct ExplorerState {
     pub import_status: Option<String>,
 }
 
+/// Documentation for render.
 pub fn render(ctx: &egui::Context, state: &mut ExplorerState, open_documents: &mut Vec<DocumentState>, api_url: &str) {
     #[allow(deprecated)]
     egui::SidePanel::left("explorer_panel")

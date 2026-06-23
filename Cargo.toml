@@ -2,7 +2,7 @@
 members = [
     "frontend",
     "backend"
-]
+, "common"]
 resolver = "2"
 
 [workspace.lints.clippy]
