@@ -1,0 +1,26 @@
+# typos configuration. Docs: https://github.com/crate-ci/typos
+[files]
+# Exclude generated/binary files that produce base64/hash false-positives.
+extend-exclude = [
+    "Cargo.lock",
+    "rsahp.db",
+    "output.mp4",
+    "*.log",
+    "target/",
+    "lcov.info",
+    "*.profraw",
+    # Captured transcript/log dump (2.1M of quoted user requests, task logs, and
+    # path hashes); its "typos" are captured content, not authored source.
+    "frontend/src/ui/explorer_old.txt",
+]
+
+[default.extend-words]
+# Domain vocabulary — EXTEND from the Step 1 output. Each is `word = "word"` (accept as-is).
+rsahp = "rsahp"
+ahp = "ahp"
+egui = "egui"
+eframe = "eframe"
+axum = "axum"
+nalgebra = "nalgebra"
+saaty = "saaty"
+eigenvector = "eigenvector"
