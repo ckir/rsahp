@@ -3,7 +3,8 @@ members = [
     "frontend",
     "backend",
     "common",
-    "xtask"
+    "xtask",
+    "migration"
 ]
 resolver = "2"
 
