@@ -35,13 +35,25 @@ jobs:
     - name: Install test tooling
       uses: taiki-e/install-action@v2
       with:
-        tool: cargo-nextest,cargo-llvm-cov
+        # NOTE: taiki-e/install-action's tool key for typos is `typos` (NOT the crate
+        # name `typos-cli` — that key is unrecognized). The `cargo install` form still
+        # uses `typos-cli`.
+        tool: cargo-nextest,cargo-llvm-cov,cargo-deny,cargo-machete,typos
 
     - name: Lint and Format
       run: |
         cargo fmt --all -- --check
         cargo clippy -- -D warnings
-        
+
+    - name: Supply-chain audit (cargo-deny)
+      run: cargo deny check
+
+    - name: Unused-dependency check (cargo-machete)
+      run: cargo machete
+
+    - name: Spellcheck (typos)
+      run: typos
+
     - name: Run tests with coverage (Linux)
       if: runner.os == 'Linux'
       env:
