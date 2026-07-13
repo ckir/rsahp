@@ -3,6 +3,20 @@ use std::process::Command;
 use sysinfo::System;
 use xshell::{Shell, cmd};
 
+/// Returns true if an external command binary is resolvable on PATH.
+fn binary_present(bin: &str) -> bool {
+    #[cfg(windows)]
+    let (probe, arg) = ("where", bin);
+    #[cfg(not(windows))]
+    let (probe, arg) = ("which", bin);
+    Command::new(probe)
+        .arg(arg)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let sh = Shell::new()?;
@@ -31,8 +45,9 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
         "[1] INNER LOOP: Quick Test (Build & Launch)",
         "[2] QUALITY GATE: Format & Lint Workspace",
         "[3] QUALITY GATE: Run Unit Tests",
-        "[4] SHIP & RELEASE: Fullscale Workflow (Commit & Push)",
-        "[5] SHIP & RELEASE: Version Bump (lockstep)",
+        "[4] QUALITY GATE: Coverage Report (llvm-cov)",
+        "[5] SHIP & RELEASE: Fullscale Workflow (Commit & Push)",
+        "[6] SHIP & RELEASE: Version Bump (lockstep)",
         "[0] Quit",
     ];
 
@@ -66,19 +81,39 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
             }
             2 => {
                 println!("=== Running Tests ===");
-                cmd!(sh, "cargo test").run().ok();
+                if binary_present("cargo-nextest") {
+                    cmd!(sh, "cargo nextest run").run().ok();
+                } else {
+                    println!(
+                        "cargo-nextest not found — falling back to `cargo test`. \
+                         Install it for faster runs: cargo install cargo-nextest --locked"
+                    );
+                    cmd!(sh, "cargo test").run().ok();
+                }
             }
             3 => {
+                println!("=== Coverage (llvm-cov + nextest) ===");
+                if binary_present("cargo-llvm-cov") {
+                    cmd!(sh, "cargo llvm-cov nextest").run().ok();
+                } else {
+                    println!(
+                        "cargo-llvm-cov not found. Install it to generate coverage: \
+                         cargo install cargo-llvm-cov --locked \
+                         (also needs the llvm-tools-preview rustup component)"
+                    );
+                }
+            }
+            4 => {
                 if let Err(e) = fullscale(sh) {
                     println!("Error: {e}");
                 }
             }
-            4 => {
+            5 => {
                 if let Err(e) = version_bump(sh) {
                     println!("Error: {e}");
                 }
             }
-            5 => {
+            6 => {
                 println!("Exiting Cockpit...");
                 break;
             }
