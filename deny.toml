@@ -1,10 +1,18 @@
 # cargo-deny configuration. Docs: https://embarkstudios.github.io/cargo-deny/
 [advisories]
 version = 2
-# Deny any crate with a known security advisory.
+# Deny any crate with a known security advisory (vulnerabilities hard-fail).
 yanked = "deny"
-# Explicit, documented risk-acceptance for unavoidable transitive advisories
-# (vulnerabilities + unmaintained crates). Any NEW advisory not listed here hard-fails.
+# Unmaintained crates are a health/tech-debt signal, not an active exploit. cargo-deny
+# v2 has no per-class "warn" severity; instead this SCOPES unmaintained checking. Policy
+# (B→C→A, user-approved intent — "policy, not per-ID whack-a-mole"): "workspace" only
+# flags unmaintained crates that are workspace members or their DIRECT deps, so purely
+# transitive unmaintained deps — proc-macro-error2 (build-time proc-macro via sea-orm)
+# and ttf-parser (egui font stack), both version-locked upstream — never block CI, and
+# neither will any future transitive unmaintained dep. Our own direct deps are still checked.
+unmaintained = "workspace"
+# Explicit, documented risk-acceptance for unavoidable transitive VULNERABILITIES that
+# have no upstream fix. Any NEW advisory not listed here still hard-fails the build.
 ignore = [
     # RUSTSEC-2023-0071 (rsa 0.9.10 "Marvin Attack" timing sidechannel).
     # Source: jsonwebtoken (backend JWT auth). No patched rsa release exists.
@@ -16,14 +24,6 @@ ignore = [
     # the production binary does not parse untrusted XML.
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
-    # RUSTSEC-2026-0173 (proc-macro-error2 unmaintained).
-    # Source: build-time proc-macro via sea-orm. No maintained replacement in use.
-    # Risk acceptance: build-time only, version-locked upstream.
-    "RUSTSEC-2026-0173",
-    # RUSTSEC-2026-0192 (ttf-parser unmaintained).
-    # Source: font stack via egui. No maintained replacement in use.
-    # Risk acceptance: font parsing only, version-locked upstream.
-    "RUSTSEC-2026-0192",
 ]
 
 [bans]
