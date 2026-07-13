@@ -46,8 +46,9 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
         "[2] QUALITY GATE: Format & Lint Workspace",
         "[3] QUALITY GATE: Run Unit Tests",
         "[4] QUALITY GATE: Coverage Report (llvm-cov)",
-        "[5] SHIP & RELEASE: Fullscale Workflow (Commit & Push)",
-        "[6] SHIP & RELEASE: Version Bump (lockstep)",
+        "[5] QUALITY GATE: Supply-chain & Hygiene (advisory)",
+        "[6] SHIP & RELEASE: Fullscale Workflow (Commit & Push)",
+        "[7] SHIP & RELEASE: Version Bump (lockstep)",
         "[0] Quit",
     ];
 
@@ -104,16 +105,34 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             4 => {
+                println!("=== Supply-chain & Hygiene (advisory — CI is the gate) ===");
+                if binary_present("cargo-deny") {
+                    cmd!(sh, "cargo deny check").run().ok();
+                } else {
+                    println!("cargo-deny not found: cargo install cargo-deny --locked");
+                }
+                if binary_present("cargo-machete") {
+                    cmd!(sh, "cargo machete").run().ok();
+                } else {
+                    println!("cargo-machete not found: cargo install cargo-machete --locked");
+                }
+                if binary_present("typos") {
+                    cmd!(sh, "typos").run().ok();
+                } else {
+                    println!("typos not found: cargo install typos-cli --locked");
+                }
+            }
+            5 => {
                 if let Err(e) = fullscale(sh) {
                     println!("Error: {e}");
                 }
             }
-            5 => {
+            6 => {
                 if let Err(e) = version_bump(sh) {
                     println!("Error: {e}");
                 }
             }
-            6 => {
+            7 => {
                 println!("Exiting Cockpit...");
                 break;
             }
