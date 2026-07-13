@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dialoguer = "0.12.0"
+sysinfo = "0.39.5"
+xshell = "0.2.7"
+
+[lints]
+workspace = true

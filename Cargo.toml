@@ -1,8 +1,10 @@
 [workspace]
 members = [
     "frontend",
-    "backend"
-, "common"]
+    "backend",
+    "common",
+    "xtask"
+]
 resolver = "2"
 
 [workspace.lints.clippy]

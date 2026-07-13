@@ -22,22 +22,24 @@
 
 - [Rust Toolchain](https://rustup.rs/) (Cargo)
 
-### Running the application
+### Developer Cockpit (`cargo xtask`)
 
-To run the application locally, you will need to start both the backend API and the frontend UI.
+This project uses an interactive Rust-native task runner (Cockpit) to manage the build and deployment lifecycles.
 
-1. **Start the backend server:**
-   ```bash
-   cd backend
-   cargo run
-   ```
+To start the Cockpit menu, simply run:
+```bash
+cargo xtask
+```
 
-2. **Start the frontend application:**
-   *(In a new terminal)*
-   ```bash
-   cd frontend
-   cargo run
-   ```
+You will be presented with a terminal UI to select your workflow:
+1. **Quick Loop**: Instantly builds the workspace, kills old background processes, and relaunches the frontend and backend.
+2. **Quality Gate**: Runs `cargo fmt` and `cargo clippy` over the workspace.
+3. **Run Unit Tests**: Executes `cargo test`.
+4. **Fullscale Workflow**: Runs tests, formats, builds, launches, commits with an interactive message prompt, and pushes to GitHub (hooking into `lefthook`).
+
+Alternatively, you can bypass the menu by specifying the command directly:
+- `cargo xtask quick`
+- `cargo xtask fullscale "Your commit message"`
 
 ## License
 
