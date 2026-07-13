@@ -27,19 +27,41 @@ jobs:
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        components: rustfmt, clippy
-        
+        components: rustfmt, clippy, llvm-tools-preview
+
     - name: Cache dependencies
       uses: Swatinem/rust-cache@v2
+
+    - name: Install test tooling
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest,cargo-llvm-cov
 
     - name: Lint and Format
       run: |
         cargo fmt --all -- --check
         cargo clippy -- -D warnings
         
-    - name: Run All Tests (including Headless UI)
-      run: cargo test
-      
+    - name: Run tests with coverage (Linux)
+      if: runner.os == 'Linux'
+      env:
+        # Select the `ci` nextest profile via env — `cargo llvm-cov nextest --profile`
+        # would collide with cargo-llvm-cov's own build-profile flag.
+        NEXTEST_PROFILE: ci
+      run: cargo llvm-cov nextest --lcov --output-path lcov.info
+
+    - name: Run tests (Windows/macOS)
+      if: runner.os != 'Linux'
+      run: cargo nextest run --profile ci
+
+    - name: Upload coverage
+      if: runner.os == 'Linux'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-lcov
+        path: lcov.info
+        if-no-files-found: warn
+
     - name: Build Everything
       run: cargo build --release
 
