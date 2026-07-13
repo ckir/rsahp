@@ -6,3 +6,8 @@
 /frontend/logs/
 *.log
 .serena/
+
+# Coverage output (cargo-llvm-cov)
+lcov.info
+*.profraw
+/target/llvm-cov-target/

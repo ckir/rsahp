@@ -1,0 +1,9 @@
+# Nextest configuration. Docs: https://nexte.st/book/configuration.html
+[profile.default]
+# Fail fast is off so a full local run reports every failure at once.
+fail-fast = false
+
+[profile.ci]
+# CI profile: retry flaky headless UI tests once.
+fail-fast = false
+retries = 1
