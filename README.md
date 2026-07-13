@@ -31,11 +31,15 @@ To start the Cockpit menu, simply run:
 cargo xtask
 ```
 
+> **Required dev tools:** `cargo-nextest` is a hard prerequisite for the `lefthook` pre-commit hook (`cargo install cargo-nextest --locked`). `cargo-llvm-cov` is optional (coverage only). The SessionStart hook (`.claude/recommended-tools.json`) surfaces any missing tools. Note: nextest does **not** run doctests — there are 0 doctests today, but if you add one, also add a `cargo test --doc` step so it is not silently skipped.
+
 You will be presented with a terminal UI to select your workflow:
 1. **Quick Loop**: Instantly builds the workspace, kills old background processes, and relaunches the frontend and backend.
 2. **Quality Gate**: Runs `cargo fmt` and `cargo clippy` over the workspace.
-3. **Run Unit Tests**: Executes `cargo test`.
-4. **Fullscale Workflow**: Runs tests, formats, builds, launches, commits with an interactive message prompt, and pushes to GitHub (hooking into `lefthook`).
+3. **Run Unit Tests**: Executes `cargo nextest run` (falls back to `cargo test` if `cargo-nextest` is not installed).
+4. **Coverage Report**: Runs `cargo llvm-cov nextest` (prints an install hint if `cargo-llvm-cov` is absent).
+5. **Fullscale Workflow**: Runs tests, formats, builds, launches, commits with an interactive message prompt, and pushes to GitHub (hooking into `lefthook`).
+6. **Version Bump**: Bumps the workspace version in lockstep across all crates.
 
 Alternatively, you can bypass the menu by specifying the command directly:
 - `cargo xtask quick`

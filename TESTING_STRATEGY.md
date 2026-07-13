@@ -25,7 +25,7 @@
 
 ### Tier 1: Local Enforcement (Using Lefthook)
 `lefthook` acts as a strict gatekeeper on the local machine:
-- **Pre-Commit Hook**: Runs lightning-fast checks (`cargo fmt`, `cargo clippy`, and `cargo test --lib`). Commits are blocked if these fail.
+- **Pre-Commit Hook**: Runs lightning-fast checks (`cargo fmt`, `cargo clippy`, and `cargo nextest run`). Commits are blocked if these fail.
 - **Pre-Push Hook**: Runs a `verify.ps1` "Configuration Contract Test". It temporarily boots the backend using the physical `config.json` to ensure the app can actually bind to the port and locate the correct `rsahp.db` file. 
 
 ### Tier 2: Remote Exhaustive Suite (GitHub Actions)
