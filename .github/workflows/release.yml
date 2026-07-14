@@ -63,3 +63,40 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/rsahp-setup-*.exe
+
+  flatpak-bundle:
+    name: Flatpak bundle
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install flatpak toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder python3 appstream
+      - name: Add flathub + install runtime/SDK
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 org.freedesktop.Sdk.Extension.rust-stable//24.08
+      - name: Validate metainfo
+        run: appstreamcli validate packaging/linux/io.github.ckir.rsahp.metainfo.xml
+      - name: Generate offline cargo sources
+        run: ./packaging/linux/generate-sources.sh
+      - name: Build + bundle
+        run: |
+          mkdir -p dist
+          flatpak-builder --user --force-clean --repo=repo build-dir packaging/linux/io.github.ckir.rsahp.yml
+          VERSION=$(cargo metadata --format-version 1 --no-deps | python3 -c "import sys,json;print(next(p['version'] for p in json.load(sys.stdin)['packages'] if p['name']=='rsahp-desktop'))")
+          flatpak build-bundle repo dist/rsahp-$VERSION.flatpak io.github.ckir.rsahp
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsahp-flatpak
+          path: dist/rsahp-*.flatpak
+          if-no-files-found: error
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/rsahp-*.flatpak
