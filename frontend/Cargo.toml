@@ -3,6 +3,7 @@ name = "frontend"
 version = "0.1.0"
 publish = false
 edition = "2024"
+license-file.workspace = true
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }

@@ -9,6 +9,11 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+# Non-OSI license → use license-file (Cargo's canonical field for non-standard licenses).
+# Inherited license-file resolves relative to the workspace root, so all crates point here.
+license-file = "LICENSE"
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }

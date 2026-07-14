@@ -3,6 +3,7 @@ name = "backend"
 version = "0.1.0"
 publish = false
 edition = "2024"
+license-file.workspace = true
 
 [dependencies]
 axum = "0.8.9"

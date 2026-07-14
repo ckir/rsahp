@@ -3,6 +3,7 @@ name = "rsahp-desktop"
 version = "0.1.0"
 publish = false
 edition = "2024"
+license-file.workspace = true
 
 [[bin]]
 name = "rsahp-desktop"
