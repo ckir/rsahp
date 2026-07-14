@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! m0 — immutable initial baseline. Reproduces the 9-table schema that
 //! `create_table_from_entity` produced. DO NOT EDIT after it ships; add new
 //! migrations for changes.

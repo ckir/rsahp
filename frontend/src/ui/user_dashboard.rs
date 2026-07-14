@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module renders the user dashboard, displaying a user's projects and pending evaluations.
 
 use crate::ui::document_window::DocumentState;

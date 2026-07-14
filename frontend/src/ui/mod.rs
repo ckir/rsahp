@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module aggregates all the UI components and defines the main application state.
 
 use eframe::egui;

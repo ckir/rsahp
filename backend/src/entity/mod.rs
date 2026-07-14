@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Contains all the database entity models and their relationships.
 //!
 //! This module exposes submodules for each database table, defining

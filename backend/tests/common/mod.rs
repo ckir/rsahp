@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Shared testing utilities and common setup functions.
 
 use axum_test::TestServer;

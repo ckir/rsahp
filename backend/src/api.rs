@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Module for AHP-related API endpoints.
 //! This module defines the routes and handlers for calculating priorities,
 //! and aggregating judgments and priorities.

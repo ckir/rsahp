@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module handles the rendering of the application's top navigation taskbar.
 
 use crate::ui::admin::AdminState;

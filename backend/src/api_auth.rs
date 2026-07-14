@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Authentication API endpoints.
 //!
 //! This module provides routes for user registration and login,

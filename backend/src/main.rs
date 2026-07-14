@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Application entry point.
 //! This module contains the main execution logic to start the server,
 //! initialize tracing/logging, load configuration, and set up the database connection.

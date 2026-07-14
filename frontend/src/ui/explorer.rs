@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module renders the project explorer, displaying the user's folders and documents in a tree view.
 
 use super::document_window::DocumentState;

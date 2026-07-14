@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Administrative API endpoints.
 //!
 //! This module provides administrative routes for managing users, groups,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Main library module for the application.
 //! This module exports various submodules for APIs, configuration, and entities.
 //! It also provides functions for initializing the database schema and routing.

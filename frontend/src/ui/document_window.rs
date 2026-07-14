@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module handles the core functionality of the document editing window,
 //! including criteria hierarchy, pairwise comparisons, and result aggregation.
 

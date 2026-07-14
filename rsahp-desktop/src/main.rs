@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Single-binary desktop wrapper: embeds the axum backend (background tokio thread) and
 //! the egui frontend (main thread), preserving the localhost HTTP boundary.
 //!

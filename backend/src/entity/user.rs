@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Represents the user entity in the database.
 //!
 //! This module contains the `Model` struct which maps to the `user` table,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! User group membership entity representation.
 //!
 //! Defines the database model and relations for linking users to groups.

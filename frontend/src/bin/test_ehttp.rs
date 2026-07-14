@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module contains a simple test for the `ehttp` crate, specifically testing header manipulation.
 
 use ehttp::Request;

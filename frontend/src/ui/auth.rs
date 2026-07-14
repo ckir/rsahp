@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module provides the authentication UI and logic, including login and registration.
 
 use eframe::egui;

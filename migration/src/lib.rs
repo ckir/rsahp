@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Versioned, immutable database migrations for rsahp.
 //!
 //! `m0_initial` is the immutable baseline snapshot of the schema that the old

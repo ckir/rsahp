@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Module for application configuration and command line parsing.
 //! This module handles loading configurations from a JSON file and
 //! overriding them with command-line arguments.

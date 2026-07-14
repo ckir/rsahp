@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Per-user data directory resolution for the packaged desktop app.
 //!
 //! Only the `rsahp-desktop` wrapper uses this. The standalone `backend`/`frontend`

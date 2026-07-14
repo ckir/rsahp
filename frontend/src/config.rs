@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! This module defines the configuration structures and parsing logic for the application.
 
 use clap::Parser;

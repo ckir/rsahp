@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Document user assignment entity representation.
 //!
 //! Defines the database model and relations for linking users to documents.

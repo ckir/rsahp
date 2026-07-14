@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 use std::process::Command;
 use sysinfo::System;

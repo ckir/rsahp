@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 use backend::{create_router, setup_schema};
 use egui_kittest::{Harness, kittest::Queryable};
 use frontend::{

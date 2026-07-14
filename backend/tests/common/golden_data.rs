@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Golden data matrices for testing Analytical Hierarchy Process (AHP) calculations.
 
 /// Represents a golden standard matrix along with its expected AHP results.

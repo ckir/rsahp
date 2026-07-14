@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Proves the percent-encoded absolute SQLite URL from `common::datadir` actually
 //! connects + migrates via sea-orm on the host OS, including a path with a SPACE.
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Document API endpoints.
 //!
 //! This module provides routes and handlers for managing documents,

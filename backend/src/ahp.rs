@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Module for Analytic Hierarchy Process (AHP) calculations.
 //! This module provides functions for calculating priority vectors,
 //! consistency metrics, and aggregating matrices/vectors.

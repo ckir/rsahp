@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Integration tests for AHP mathematical calculations.
 
 /// Common setup and utilities for tests.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 //! Document group assignment entity representation.
 //!
 //! Defines the database model and relations for linking groups to documents.
