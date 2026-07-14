@@ -72,4 +72,4 @@ add one, also add a `cargo test --doc` CI step.
 
 ## License
 
-This project is licensed under a custom Non-Commercial License (Free for non-commercial use). See the [LICENSE](LICENSE) file for details.
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE) — free for noncommercial use. See the [LICENSE](LICENSE) file for the full terms.
