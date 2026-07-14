@@ -50,3 +50,13 @@ Windows Inno Setup installer + Linux Flatpak for the egui/axum app, via a single
 **Options for the follow-up spec:** (a) generate a per-install random secret at first run (store in the data-dir config, never in source); (b) have the `rsahp-desktop` wrapper mint a one-time in-memory token per launch and hand it to both the embedded backend (to validate) and the frontend (as `Authorization: Bearer`); (c) also consider CSRF/origin checks for the localhost server. Note the Flatpak packaging already mitigates the *cross-process* vector on Linux by dropping `--share=network` (R3-2), so the backend is not reachable outside the sandbox there; Windows has no such containment, so it remains exposed until this lands.
 
 **Also noted:** the dev login seed (`admin`/…) is `#[cfg(debug_assertions)]`, so a RELEASE/packaged build has no seeded user — confirm the packaged onboarding/registration path when this is picked up.
+
+---
+
+## Deferred: desktop-packaging code-review follow-ups (non-blocking)
+
+Surfaced by the final `rust-reviewer` pass on the `desktop-packaging` branch (2026-07-14). None block the packaging merge; the branch passes the real CI gate (`cargo clippy -- -D warnings`, fmt, tests) cleanly. Tracked here for later.
+
+- **#3 — UNC path yields a malformed sqlite URL.** `common/src/datadir.rs` `database_url_from_path`: a Windows UNC data-dir (`\\server\share\...`, possible under enterprise profile redirection) becomes `//server/share/...` after backslash→slash, so the leading-slash guard does nothing and the URL ends up `sqlite:////server/share/...` (four slashes), likely mis-parsed as an authority. Not exercised by current tests (drive-letter + POSIX only). Add a UNC guard + a unit test. Narrow/enterprise-only.
+- **#4 — `cargo pkgid` version parse is toolchain-format-fragile.** `xtask/src/main.rs` `build_windows_installer`: correct on cargo ≥1.77 (`…#name@version`), but on older cargo emitting the legacy `#name:version` form the `#`-fallback would capture `"rsahp-desktop:0.1.0"` as the version, breaking the Inno `/DMyAppVersion=` define. No `rust-toolchain.toml` pins a minimum. Either pin a min toolchain or split on `:` in the fallback. Currently inert.
+- **#5 — `AppConfig::save()` silently drops write errors.** `frontend/src/config.rs`: `let _ = fs::write(...)`. Correctly non-panicking (as designed), but a preference change (`use_gpu`, `zoom_scale`) that fails to persist to a read-only dir gives the user no feedback. Pre-existing pattern (only the target path changed this branch). Consider surfacing a non-fatal warning.
