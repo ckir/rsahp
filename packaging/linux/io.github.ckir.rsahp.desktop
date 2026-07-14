@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=rsahp
+Comment=AHP Group Decision System
+Exec=rsahp-desktop
+Icon=io.github.ckir.rsahp
+Terminal=false
+Categories=Office;Utility;

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.ckir.rsahp</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>rsahp</name>
+  <summary>AHP Group Decision System</summary>
+  <description>
+    <p>rsahp is a desktop application for Analytic Hierarchy Process (AHP) group
+       decision-making. It bundles a local backend service and a native GUI.</p>
+  </description>
+  <launchable type="desktop-id">io.github.ckir.rsahp.desktop</launchable>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-07-14" />
+  </releases>
+</component>
