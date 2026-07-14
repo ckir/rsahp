@@ -35,6 +35,18 @@ Deferred / planned work items, with enough design detail to resume cleanly.
 
 ---
 
-## Next up: Product packaging (Inno Setup + Flatpak)
+## In progress: Product packaging (Inno Setup + Flatpak)
 
-Windows Inno Setup installer + Linux Flatpak for the egui/axum app. To be brainstormed next (own spec → plan → implementation cycle). This is the blocker for the cockpit's SHIP & RELEASE tier above.
+Windows Inno Setup installer + Linux Flatpak for the egui/axum app, via a single-binary `rsahp-desktop` wrapper. **Design + line-level plan complete and panel-hardened** (3 adversarial-panel rounds folded): spec at `docs/superpowers/specs/2026-07-14-desktop-packaging-design.md`, plan at `docs/superpowers/plans/2026-07-14-desktop-packaging.md`. Ready for subagent-driven execution (P1 data-dir → P2 wrapper → P3 Inno → P4 Flatpak). This is the blocker for the cockpit's SHIP & RELEASE tier above.
+
+---
+
+## Deferred: loopback backend auth hardening (security follow-up)
+
+**Status:** DEFERRED (2026-07-14) — surfaced by the packaging plan's adversarial panel (finding R3-1), user-decided to defer. **Pre-existing** — present in the current dev app, NOT introduced by packaging.
+
+**Issue:** The backend's JWT auth uses a hardcoded static signing secret (`backend/src/api_auth.rs:20` — `const JWT_SECRET = b"super-secret-key-change-in-production"`). It is compiled into every binary and identical across installs, so any local process (or a browser blind-POSTing to `127.0.0.1`) can forge a valid token and bypass the auth on `/api/documents` etc. The routes ARE JWT-gated, but the gate is forgeable.
+
+**Options for the follow-up spec:** (a) generate a per-install random secret at first run (store in the data-dir config, never in source); (b) have the `rsahp-desktop` wrapper mint a one-time in-memory token per launch and hand it to both the embedded backend (to validate) and the frontend (as `Authorization: Bearer`); (c) also consider CSRF/origin checks for the localhost server. Note the Flatpak packaging already mitigates the *cross-process* vector on Linux by dropping `--share=network` (R3-2), so the backend is not reachable outside the sandbox there; Windows has no such containment, so it remains exposed until this lands.
+
+**Also noted:** the dev login seed (`admin`/…) is `#[cfg(debug_assertions)]`, so a RELEASE/packaged build has no seeded user — confirm the packaged onboarding/registration path when this is picked up.

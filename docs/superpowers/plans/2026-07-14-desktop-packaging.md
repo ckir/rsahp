@@ -20,6 +20,10 @@
 - **R2-1 (REJECTED)** — claimed `if let … && let …` is unstable; refuted by measurement — `frontend/src/config.rs:63-65` and `backend/src/config.rs:48-50` already use let-chains and the project compiles/CI is green (stabilized Rust 1.88, edition 2024). Instance of agy's known version-stale-syntax tendency.
 - **R2-2 (REJECTED)** — claimed the wrapper reads `database_url`/`port` off the frontend `AppConfig`; refuted by the plan text — Task 11 builds `db_url` from `AppPaths::database_url()` and binds an ephemeral port; it never reads those fields.
 
+**Round 3** (agy escalation, hard cap, seat: Boundary Smuggler) → verified both round-2 folds CORRECT (watchdog isolation + `drop(log_guard)` borrow analysis, no double-drop) and SQLite URI injection **SAFE** (our `?`/`#` encoding covers it). Two security findings:
+- **R3-2 (FOLDED, user-approved)** — Flatpak `--share=network` was broader than needed; the single binary runs server+client in the SAME sandbox netns (private loopback works without host network). Removed it from `finish-args`, with a verify-or-revert gate at Task 17 Step 3. Improves isolation on Linux.
+- **R3-1 (DEFERRED, user decision)** — the loopback backend's JWT auth uses a hardcoded static secret (`backend/src/api_auth.rs:20`), so a local process can forge tokens. This is **pre-existing** (present in the dev app; not caused by packaging) and OUT OF SCOPE for this plan. Tracked as a security follow-up in `ROADMAP.md`; do NOT expand this plan for it. (agy's round-3 RED verdict was driven by R3-1; with it correctly scoped out, the packaging plan is sound.)
+
 ---
 
 ## Reconciliation notes (spec vs. actual code — READ FIRST)
@@ -1285,7 +1289,12 @@ sdk-extensions:
 command: rsahp-desktop
 
 finish-args:
-  - --share=network
+  # R3-2 (least-privilege): NO --share=network. The single binary runs BOTH the axum
+  # server and the egui client in the SAME sandbox network namespace, whose private
+  # loopback (127.0.0.1) works without host network access — so the backend stays
+  # unreachable from the host. If the local build (Step 3) shows the frontend cannot
+  # reach the backend, the private loopback is not up on this runtime → re-add
+  # `- --share=network` as a documented fallback and rebuild.
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
@@ -1329,7 +1338,7 @@ flatpak-builder --user --force-clean --install build-dir packaging/linux/io.gith
 flatpak run io.github.ckir.rsahp
 ```
 
-Expected: offline build succeeds; app launches; login modal renders (backend reachable in-sandbox on the ephemeral loopback port); `~/.var/app/io.github.ckir.rsahp/data/rsahp/rsahp.db` persists across restarts.
+Expected: offline build succeeds; app launches; `~/.var/app/io.github.ckir.rsahp/data/rsahp/rsahp.db` persists across restarts. **R3-2 verify-or-revert gate:** the login modal MUST render, proving the frontend reaches the embedded backend over the sandbox's private loopback WITHOUT `--share=network`. If instead the GUI shows connection errors / the backend is unreachable, the runtime's isolated loopback is not up → re-add `- --share=network` to `finish-args` and rebuild (documented fallback), then re-run this step.
 
 - [ ] **Step 4: Bundle.**
 
