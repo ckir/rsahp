@@ -185,3 +185,131 @@ pub async fn entity_schema_db(db: &sea_orm::DatabaseConnection) -> Result<(), Db
     }
     Ok(())
 }
+
+/// Drift-guard: asserts the schema built from the LIVE entities
+/// (`create_table_from_entity`) is structurally identical to the schema built by
+/// the migrations (`Migrator::up`), across all 9 application tables — proving the
+/// immutable `m0` baseline still matches the entities. Fails if an entity is
+/// edited without a corresponding migration.
+///
+/// Comparison is SEMANTIC (normalized PRAGMA metadata as order-insensitive sets),
+/// NOT textual DDL — the two paths emit equivalent-but-different CREATE TABLE text.
+/// The `seaql_migrations` tracking table is excluded (present only on the migrated DB).
+#[cfg(test)]
+mod migration_drift {
+use crate::{entity_schema_db, APP_TABLES};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement};
+use std::collections::BTreeSet;
+
+/// One column's structural metadata from PRAGMA table_info.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct ColInfo {
+    name: String,
+    col_type: String,
+    notnull: bool,
+    dflt: Option<String>,
+    pk: i32,
+}
+
+/// One foreign key's structural metadata from PRAGMA foreign_key_list.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct FkInfo {
+    from: String,
+    table: String,
+    to: String,
+    on_delete: String,
+    on_update: String,
+}
+
+async fn table_names(db: &DatabaseConnection) -> BTreeSet<String> {
+    let rows = db
+        .query_all(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'seaql_migrations';".to_owned(),
+        ))
+        .await
+        .unwrap();
+    rows.into_iter()
+        .map(|r| r.try_get::<String>("", "name").unwrap())
+        .collect()
+}
+
+async fn columns(db: &DatabaseConnection, table: &str) -> BTreeSet<ColInfo> {
+    let rows = db
+        .query_all(Statement::from_string(
+            DbBackend::Sqlite,
+            format!("PRAGMA table_info(\"{table}\");"),
+        ))
+        .await
+        .unwrap();
+    rows.into_iter()
+        .map(|r| ColInfo {
+            name: r.try_get::<String>("", "name").unwrap(),
+            col_type: r.try_get::<String>("", "type").unwrap().to_uppercase(),
+            notnull: r.try_get::<i32>("", "notnull").unwrap() != 0,
+            dflt: r.try_get::<Option<String>>("", "dflt_value").unwrap(),
+            pk: r.try_get::<i32>("", "pk").unwrap(),
+        })
+        .collect()
+}
+
+async fn foreign_keys(db: &DatabaseConnection, table: &str) -> BTreeSet<FkInfo> {
+    let rows = db
+        .query_all(Statement::from_string(
+            DbBackend::Sqlite,
+            format!("PRAGMA foreign_key_list(\"{table}\");"),
+        ))
+        .await
+        .unwrap();
+    rows.into_iter()
+        .map(|r| FkInfo {
+            from: r.try_get::<String>("", "from").unwrap(),
+            table: r.try_get::<String>("", "table").unwrap(),
+            to: r.try_get::<String>("", "to").unwrap(),
+            on_delete: r.try_get::<String>("", "on_delete").unwrap(),
+            on_update: r.try_get::<String>("", "on_update").unwrap(),
+        })
+        .collect()
+}
+
+async fn fresh_db() -> DatabaseConnection {
+    // max_connections(1) is REQUIRED: `sqlite::memory:` gives each pooled connection
+    // its OWN empty database, so a multi-connection pool would run Migrator::up on one
+    // connection and PRAGMA queries on another (empty) one — a false/empty comparison.
+    let mut opt = ConnectOptions::new("sqlite::memory:");
+    opt.max_connections(1);
+    Database::connect(opt).await.unwrap()
+}
+
+#[tokio::test]
+async fn entity_schema_matches_migrations() {
+    let entity_db = fresh_db().await;
+    entity_schema_db(&entity_db).await.unwrap();
+
+    let migrated_db = fresh_db().await;
+    Migrator::up(&migrated_db, None).await.unwrap();
+
+    // Table-name sets must match exactly (catches entity-added-without-migration
+    // AND migration-added-without-entity), excluding seaql_migrations.
+    let entity_tables = table_names(&entity_db).await;
+    let migrated_tables = table_names(&migrated_db).await;
+    assert_eq!(
+        entity_tables, migrated_tables,
+        "table-name sets differ: entity={entity_tables:?} migrated={migrated_tables:?}"
+    );
+    let expected: BTreeSet<String> = APP_TABLES.iter().map(|s| (*s).to_owned()).collect();
+    assert_eq!(entity_tables, expected, "entity tables != canonical APP_TABLES");
+
+    // Per-table column + FK structural equality.
+    for table in APP_TABLES {
+        let ec = columns(&entity_db, table).await;
+        let mc = columns(&migrated_db, table).await;
+        assert_eq!(ec, mc, "column mismatch in `{table}`:\n entity={ec:#?}\n migrated={mc:#?}");
+
+        let ef = foreign_keys(&entity_db, table).await;
+        let mf = foreign_keys(&migrated_db, table).await;
+        assert_eq!(ef, mf, "FK mismatch in `{table}`:\n entity={ef:#?}\n migrated={mf:#?}");
+    }
+}
+} // mod migration_drift
