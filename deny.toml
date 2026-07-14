@@ -50,6 +50,10 @@ allow = [
     "CDLA-Permissive-2.0",
     "GPL-2.0-only",
     "LGPL-2.1-or-later",
+    # MPL-2.0: file-level weak copyleft, weaker than the GPL/LGPL already allowed above.
+    # Source: option-ext v0.2.0 (transitive dep of `directories`, used by common::datadir).
+    # Using it as an unmodified dependency imposes no copyleft obligation on our own source.
+    "MPL-2.0",
     "MIT-0",
     "OFL-1.1",
     "Ubuntu-font-1.0",

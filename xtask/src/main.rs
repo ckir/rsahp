@@ -340,6 +340,10 @@ fn version_bump(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
 
 /// Builds `rsahp-desktop` (release) and runs Inno Setup's `iscc`, injecting the version
 /// from `cargo pkgid` (robust — no JSON string-slicing). Windows-only.
+// The non-windows cfg arm is a stub that always returns `Ok(())`, so clippy flags the
+// `Result` as unnecessary when checked on macOS/Linux — but the windows arm genuinely
+// uses `?`, so the wrap IS needed on the target that actually runs this.
+#[allow(clippy::unnecessary_wraps)]
 fn build_windows_installer(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(windows))]
     {
