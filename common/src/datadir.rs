@@ -77,6 +77,44 @@ pub fn resolve() -> Option<AppPaths> {
     })
 }
 
+/// Default `config.json` seeded on first run.
+///
+/// Contains **every key both binaries read** across their separate `AppConfig` structs
+/// (backend: `database_url`, `port`; frontend: `api_url`, `use_gpu`). `use_gpu: false` =
+/// safe default (GPU init can crash on faulty drivers; capable machines opt in). Written
+/// verbatim (neither struct owns all keys).
+pub const DEFAULT_CONFIG_JSON: &str = r#"{
+  "api_url": "http://127.0.0.1:4002/api/documents",
+  "use_gpu": false,
+  "database_url": "sqlite://rsahp.db?mode=rwc",
+  "port": 4002
+}
+"#;
+
+/// Ensures `data_dir` + `logs_dir` exist and seeds `config_path`.
+///
+/// Seeds with [`DEFAULT_CONFIG_JSON`] **only if it does not already exist** (idempotent —
+/// never clobbers a user-edited config). NOTE: the wrapper creates `data_dir` separately
+/// *before* acquiring the single-instance lock (the lock file lives in it); this call
+/// runs *after* the lock so only the lock-winner seeds the config (no first-run race).
+///
+/// # Errors
+///
+/// Returns an error if creating `data_dir` or `logs_dir`, or writing `config_path`, fails
+/// (e.g. permissions or a full disk).
+pub fn ensure_dirs_and_seed(
+    data_dir: &Path,
+    logs_dir: &Path,
+    config_path: &Path,
+) -> std::io::Result<()> {
+    std::fs::create_dir_all(data_dir)?;
+    std::fs::create_dir_all(logs_dir)?;
+    if !config_path.exists() {
+        std::fs::write(config_path, DEFAULT_CONFIG_JSON)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +167,29 @@ mod tests {
             win,
             "sqlite:///C:/Users/John%20Doe/AppData/Local/rsahp/rsahp.db?mode=rwc"
         );
+    }
+
+    #[test]
+    fn seed_writes_all_keys_and_is_idempotent() {
+        let tmp = std::env::temp_dir().join(format!("rsahp_seed_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let cfg = tmp.join("config.json");
+
+        ensure_dirs_and_seed(&tmp, &tmp.join("logs"), &cfg).expect("seed ok");
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
+        for key in ["api_url", "use_gpu", "database_url", "port"] {
+            assert!(v.get(key).is_some(), "missing key: {key}");
+        }
+        assert!(tmp.join("logs").is_dir());
+
+        std::fs::write(&cfg, r#"{"api_url":"http://custom"}"#).unwrap();
+        ensure_dirs_and_seed(&tmp, &tmp.join("logs"), &cfg).expect("second seed ok");
+        assert_eq!(
+            std::fs::read_to_string(&cfg).unwrap(),
+            r#"{"api_url":"http://custom"}"#
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
