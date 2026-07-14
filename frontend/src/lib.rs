@@ -28,9 +28,13 @@ pub fn run_gui(api_base: String, mut config: AppConfig) -> Result<(), eframe::Er
     };
 
     let options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
-            .with_maximized(true),
+        // Start maximized. Do NOT also set `with_inner_size` here: on eframe 0.34 / winit,
+        // passing an explicit inner size alongside `with_maximized(true)` causes the
+        // maximized flag to be dropped, and the window opens at the inner size instead
+        // (verified via UI automation — it opened at ~1200x800 rather than maximized).
+        // With only the maximized flag, the window manager assigns a native restore size
+        // and eframe's window-state persistence still governs later launches.
+        viewport: eframe::egui::ViewportBuilder::default().with_maximized(true),
         hardware_acceleration,
         ..Default::default()
     };
