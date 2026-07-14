@@ -12,7 +12,13 @@
 
 ## Review status
 
-Passed adversarial-panel-review round 1 (solo panel + agy escalation) → verdict **RED** → **all 17 findings folded into this revision** (10 solo F1–F10 + 7 agy A1–A7; A1 downgraded to optional hardening). The high-severity folds are baked into the tasks below: percent-encoded SQLite URL + a real sea-orm integration test (F2/A4); `fd-lock` instead of ambiguous `fs4` (F3); lock-before-seed ordering (A3); bounded-exit watchdog to prevent a zombie (A2); `config.save()` path fix (F1); Flatpak `skip:` list (A5); `cargo pkgid` version resolution (A6); test-gated release (A7).
+**Round 1** (solo panel + agy escalation) → **RED** → all 17 findings folded (10 solo F1–F10 + 7 agy A1–A7; A1 downgraded to optional hardening): percent-encoded SQLite URL + real sea-orm integration test (F2/A4); `fd-lock` not `fs4` (F3); lock-before-seed (A3); bounded-exit watchdog (A2); `config.save()` path fix (F1); Flatpak `skip:` list (A5); `cargo pkgid` version (A6); test-gated release (A7).
+
+**Round 2** (agy escalation, fresh seats: Resource Vampire / Blindspot Auditor / Mechanism Gamer) → **RED** → 2 real findings folded, 2 rejected by measurement:
+- **R2-3 (FOLDED)** — the exit watchdog was spawned unconditionally, so on a GUI error its 3s `exit(0)` would race and kill the modal error dialog with a success code. Now the watchdog guards ONLY the clean path (Task 11 step 10).
+- **R2-4 (FOLDED)** — `std::process::exit` skips the `WorkerGuard` drop, losing buffered logs behind a "see logs" prompt. Now `drop(log_guard)` flushes before every error-path exit (Task 11 steps 5/8/10).
+- **R2-1 (REJECTED)** — claimed `if let … && let …` is unstable; refuted by measurement — `frontend/src/config.rs:63-65` and `backend/src/config.rs:48-50` already use let-chains and the project compiles/CI is green (stabilized Rust 1.88, edition 2024). Instance of agy's known version-stale-syntax tendency.
+- **R2-2 (REJECTED)** — claimed the wrapper reads `database_url`/`port` off the frontend `AppConfig`; refuted by the plan text — Task 11 builds `db_url` from `AppPaths::database_url()` and binds an ephemeral port; it never reads those fields.
 
 ---
 
@@ -798,7 +804,10 @@ fn main() {
 
     // 5. Logging → <data_dir>/logs.
     let file_appender = RollingFileAppender::new(Rotation::DAILY, &paths.logs_dir, "rsahp_desktop.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // `log_guard` flushes buffered logs when dropped. `std::process::exit` SKIPS Drop, so
+    // we drop it explicitly before every error-path exit (below) or the "see logs" prompt
+    // points at an empty file.
+    let (non_blocking, log_guard) = tracing_appender::non_blocking(file_appender);
     tracing_subscriber::registry()
         .with(EnvFilter::new("info"))
         .with(fmt::layer().json().with_writer(std::io::stdout))
@@ -830,10 +839,13 @@ fn main() {
     // 8. Block for the real bound address (deterministic). Sender dropped ⇒ startup failed.
     let addr = match ready_rx.blocking_recv() {
         Ok(addr) => addr,
-        Err(_) => fatal(
-            "rsahp",
-            "The backend service failed to start (see logs). The application cannot continue.",
-        ),
+        Err(_) => {
+            drop(log_guard); // flush the backend's error log before we exit
+            fatal(
+                "rsahp",
+                "The backend service failed to start (see logs). The application cannot continue.",
+            );
+        }
     };
 
     // 9. GUI on the main thread. The `/api/documents` suffix is load-bearing (the admin
@@ -841,19 +853,27 @@ fn main() {
     let api_base = format!("http://{addr}/api/documents");
     let gui_result = frontend::run_gui(api_base, config);
 
-    // 10. Window closed → graceful shutdown → bounded exit. A watchdog guarantees we never
-    //     hang forever waiting for a connection to drain (which would zombie the process
-    //     while still holding the lock).
+    // 10. Window closed → graceful shutdown → bounded exit. The watchdog guards ONLY the
+    //     clean path (a hung connection-drain must never zombie us). It is NOT spawned on
+    //     the error path — otherwise its 3s exit(0) would race the modal error dialog,
+    //     killing it with a SUCCESS code and masking the failure.
     let _ = shutdown_tx.send(());
-    std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_secs(3));
-        std::process::exit(0);
-    });
-    let _ = server_thread.join();
-
     match gui_result {
-        Ok(()) => std::process::exit(0),
-        Err(e) => fatal("rsahp", &format!("GUI error: {e}")),
+        Ok(()) => {
+            std::thread::spawn(|| {
+                std::thread::sleep(Duration::from_secs(3));
+                std::process::exit(0);
+            });
+            let _ = server_thread.join();
+            drop(log_guard); // flush buffered logs before exiting (process::exit skips Drop)
+            std::process::exit(0);
+        }
+        Err(e) => {
+            // No watchdog here: let the user acknowledge the dialog. fatal() exits the
+            // process (which reaps the still-running server thread); flush logs first.
+            drop(log_guard);
+            fatal("rsahp", &format!("GUI error: {e}"));
+        }
     }
 }
 
@@ -1397,5 +1417,5 @@ git commit -m "ci: add gated Flatpak build+bundle job"
 - **Version source of truth:** installer/bundle version = `rsahp-desktop`'s package `version`. Extend the existing `version_bump` xtask action to ALSO bump `rsahp-desktop/Cargo.toml` AND the metainfo `<release>` (F10) if lockstep versioning is desired (optional; flagged, not required).
 - **`use_gpu` recap:** default OFF; enabled by config `use_gpu: true` OR the dev-only `--enable-gpu` flag. The packaged wrapper has no CLI, so config is the only knob — the packaged-user GPU escape hatch.
 - **Do not push tags or create GitHub Releases** without explicit user instruction.
-- **Panel-folded high-severity items** (do not silently drop when implementing): percent-encoded DB path + spaced-path integration test (F2/A4); `fd-lock` not `fs4` (F3); create-dir→lock→seed ordering (A3); bounded-exit watchdog (A2); `save()` writes to the loaded path (F1); Flatpak `skip:` (A5); `cargo pkgid` version (A6); test-gated release (A7).
+- **Panel-folded high-severity items** (do not silently drop when implementing): percent-encoded DB path + spaced-path integration test (F2/A4); `fd-lock` not `fs4` (F3); create-dir→lock→seed ordering (A3); bounded-exit watchdog on the clean path ONLY (A2/R2-3); `save()` writes to the loaded path (F1); `drop(log_guard)` flush before error-path exits (R2-4); Flatpak `skip:` (A5); `cargo pkgid` version (A6); test-gated release (A7).
 ```
