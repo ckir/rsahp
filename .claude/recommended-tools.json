@@ -1,0 +1,38 @@
+[
+  {
+    "name": "cargo-nextest",
+    "why": "Faster test runner; hard prerequisite for the lefthook pre-commit hook and CI.",
+    "install": "cargo install cargo-nextest --locked",
+    "in_path": "cargo-nextest"
+  },
+  {
+    "name": "cargo-llvm-cov",
+    "why": "Line coverage via the xtask Coverage action and CI (Linux). Needs the llvm-tools-preview rustup component.",
+    "install": "cargo install cargo-llvm-cov --locked",
+    "in_path": "cargo-llvm-cov"
+  },
+  {
+    "name": "cargo-deny",
+    "why": "Supply-chain / license / advisory gate (CI-authoritative, xtask-advisory).",
+    "install": "cargo install cargo-deny --locked",
+    "in_path": "cargo-deny"
+  },
+  {
+    "name": "cargo-machete",
+    "why": "Detects unused dependencies (CI-gating).",
+    "install": "cargo install cargo-machete --locked",
+    "in_path": "cargo-machete"
+  },
+  {
+    "name": "typos",
+    "why": "Source spellcheck (CI-gating). Crate is typos-cli; binary is typos.",
+    "install": "cargo install typos-cli --locked",
+    "in_path": "typos"
+  },
+  {
+    "name": "sea-orm-cli",
+    "why": "Generates future migration skeletons for the migration crate.",
+    "install": "cargo install sea-orm-cli --locked",
+    "in_path": "sea-orm-cli"
+  }
+]
