@@ -14,3 +14,7 @@ lcov.info
 
 # Local installer build output
 dist/
+
+# Flatpak generated/fetched artifacts (not committed)
+packaging/linux/cargo-sources.json
+packaging/linux/flatpak-cargo-generator.py

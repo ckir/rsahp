@@ -1,0 +1,44 @@
+app-id: io.github.ckir.rsahp
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: rsahp-desktop
+
+finish-args:
+  # R3-2 (least-privilege): NO --share=network. The single binary runs BOTH the axum
+  # server and the egui client in the SAME sandbox network namespace, whose private
+  # loopback (127.0.0.1) works without host network access — so the backend stays
+  # unreachable from the host. If the local build (Step 3) shows the frontend cannot
+  # reach the backend, the private loopback is not up on this runtime → re-add
+  # `- --share=network` as a documented fallback and rebuild.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/rsahp/cargo
+
+modules:
+  - name: rsahp
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release -p rsahp-desktop
+      - install -Dm755 target/release/rsahp-desktop /app/bin/rsahp-desktop
+      - install -Dm644 packaging/linux/io.github.ckir.rsahp.desktop /app/share/applications/io.github.ckir.rsahp.desktop
+      - install -Dm644 packaging/linux/io.github.ckir.rsahp.metainfo.xml /app/share/metainfo/io.github.ckir.rsahp.metainfo.xml
+      - install -Dm644 packaging/linux/io.github.ckir.rsahp.png /app/share/icons/hicolor/256x256/apps/io.github.ckir.rsahp.png
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .git
+          - build-dir
+          - repo
+          - dist
+          - .flatpak-builder
+      - cargo-sources.json
