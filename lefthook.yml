@@ -2,13 +2,16 @@ pre-commit:
   parallel: true
   commands:
     fmt:
+      glob: "*.{rs,toml,lock}"
       run: cargo fmt --all -- --check
     clippy:
+      glob: "*.{rs,toml,lock}"
       run: cargo clippy -- -D warnings
-    test:
-      run: cargo nextest run
 
 pre-push:
+  parallel: true
   commands:
+    test:
+      run: cargo nextest run
     verify:
       run: pwsh ./verify.ps1
