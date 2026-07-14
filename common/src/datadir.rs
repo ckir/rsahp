@@ -116,6 +116,7 @@ pub fn ensure_dirs_and_seed(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
