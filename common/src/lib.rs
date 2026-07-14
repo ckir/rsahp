@@ -1,4 +1,6 @@
 //! Module lib.rs
+pub mod datadir;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
