@@ -45,6 +45,31 @@ Alternatively, you can bypass the menu by specifying the command directly:
 - `cargo xtask quick`
 - `cargo xtask fullscale "Your commit message"`
 
+## Database migrations
+
+Schema is managed by the `migration` crate (sea-orm-migration) and applied at
+backend startup via `Migrator::up`. `m0_initial` is the **immutable** baseline —
+never edit it; add a new migration for any schema change.
+
+**Adding an entity:** (1) add the entity module; (2) add its table to the `m0`
+migration ONLY if pre-release, otherwise write a NEW migration; (3) add its table
+name to the `APP_TABLES` canonical list in `backend/src/lib.rs`. The drift-guard
+test asserts entity-built and migration-built schemas match. **Residual gap:** a
+new entity omitted from BOTH its migration AND `APP_TABLES` is not caught
+automatically (sea-orm has no runtime entity registry) — this is a code-review
+responsibility.
+
+**Upgrading from a pre-migration database:** an old `rsahp.db` (built before
+migrations) has no `seaql_migrations` table; startup detects this and prints a
+cutover message. The dev DB is disposable — **back up or expect data loss**, then:
+
+    rm rsahp.db
+
+and restart; a fresh migrated DB is created automatically.
+
+**Doctests:** `cargo nextest run` does not run doctests. There are 0 today; if you
+add one, also add a `cargo test --doc` CI step.
+
 ## License
 
 This project is licensed under a custom Non-Commercial License (Free for non-commercial use). See the [LICENSE](LICENSE) file for details.
