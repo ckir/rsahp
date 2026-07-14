@@ -1,12 +1,10 @@
 //! The main entry point for the frontend application.
 
 #![allow(warnings)]
-use eframe::egui;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 use frontend::config::AppConfig;
-use frontend::ui::RsahpApp;
 
 /// The main function of the application.
 fn main() -> Result<(), eframe::Error> {
@@ -27,30 +25,17 @@ fn main() -> Result<(), eframe::Error> {
         .init();
 
     // Load the application configuration.
-    let (config, cli_args) = AppConfig::load();
+    let (mut config, cli_args) = AppConfig::load();
 
-    // Determine the hardware acceleration preference based on the CLI flag.
-    let hardware_acceleration = if cli_args.disable_gpu {
-        eframe::HardwareAcceleration::Off
-    } else {
-        eframe::HardwareAcceleration::Preferred
-    };
+    // `--enable-gpu` is a dev opt-in equivalent to config `use_gpu: true` (OR semantics).
+    if cli_args.enable_gpu {
+        config.use_gpu = Some(true);
+    }
 
-    // Configure the native options for the eframe application window.
-    let options = eframe::NativeOptions {
-        // Build the viewport with initial size and maximized state.
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
-            .with_maximized(true),
-        // Set the hardware acceleration option.
-        hardware_acceleration,
-        ..Default::default()
-    };
+    let api_base = config
+        .api_url
+        .clone()
+        .unwrap_or_else(|| "http://127.0.0.1:4002/api/documents".to_string());
 
-    // Run the native eframe application with the configured options and UI instance.
-    eframe::run_native(
-        "AHP Group Decision System",
-        options,
-        Box::new(move |_cc| Ok(Box::new(RsahpApp::new(config)))),
-    )
+    frontend::run_gui(api_base, config)
 }

@@ -3,6 +3,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Command-line arguments for the application.
 #[derive(Parser, Debug)]
@@ -16,9 +17,9 @@ pub struct CliArgs {
     #[arg(long)]
     pub api_url: Option<String>,
 
-    /// Optional flag to force CPU usage (disable GPU).
+    /// Enable GPU hardware acceleration (OFF by default; equivalent to config `use_gpu: true`).
     #[arg(long)]
-    pub disable_gpu: bool,
+    pub enable_gpu: bool,
 }
 
 /// The main configuration structure for the application.
@@ -28,66 +29,66 @@ pub struct AppConfig {
     pub api_url: Option<String>,
     /// The UI zoom scale factor.
     pub zoom_scale: Option<f32>,
+    /// Request GPU hardware acceleration. `None`/`Some(false)` → CPU (safe default);
+    /// `Some(true)` → GPU. Also settable at runtime via `--enable-gpu`.
+    pub use_gpu: Option<bool>,
+    /// The path this config was loaded from, so `save()` writes back to the SAME file
+    /// (not a re-parsed CWD default). Not serialized.
+    #[serde(skip)]
+    config_path: Option<PathBuf>,
 }
 
-/// Implementation of the `Default` trait for `AppConfig`.
 impl Default for AppConfig {
-    /// Returns a default `AppConfig` instance.
     fn default() -> Self {
         Self {
-            // Default API URL is None.
             api_url: None,
-            // Default zoom scale is 1.25.
             zoom_scale: Some(1.25),
+            use_gpu: None,
+            config_path: None,
         }
     }
 }
 
-/// Implementation of methods for `AppConfig`.
 impl AppConfig {
-    /// Loads the configuration from the file and overrides with CLI arguments.
+    /// Loads config from `config.json` (or `--config <path>`), then applies CLI overrides.
     pub fn load() -> (Self, CliArgs) {
-        // Parse the command-line arguments.
         let cli = CliArgs::parse();
-
-        // Initialize with default configuration.
-        let mut config = AppConfig::default();
-
-        // Determine the configuration path, defaulting to "config.json".
         let config_path = cli
             .config
             .clone()
             .unwrap_or_else(|| "config.json".to_string());
+        let mut config = AppConfig::load_from(Path::new(&config_path));
 
-        // Attempt to read and parse the configuration file.
-        if let Ok(content) = fs::read_to_string(&config_path)
-            && let Ok(parsed) = serde_json::from_str::<AppConfig>(&content)
-        {
-            // If successful, update the config with parsed values.
-            config = parsed;
-        }
-
-        // Apply CLI overrides for API URL.
         if let Some(url) = cli.api_url.clone() {
             config.api_url = Some(url);
         }
-
-        // Return the final configuration alongside CLI arguments.
         (config, cli)
     }
 
-    /// Saves the current configuration to the configuration file.
+    /// Loads config from an explicit path (no CLI parsing) — used by `rsahp-desktop`.
+    /// Records the path so `save()` writes back to it.
+    #[must_use]
+    pub fn load_from(path: &Path) -> Self {
+        let mut config = AppConfig::default();
+        if let Ok(content) = fs::read_to_string(path)
+            && let Ok(parsed) = serde_json::from_str::<AppConfig>(&content)
+        {
+            config = parsed;
+        }
+        config.config_path = Some(path.to_path_buf());
+        config
+    }
+
+    /// Saves the current configuration back to the path it was loaded from (falling back
+    /// to `config.json` in the CWD only if unknown). Does NOT re-parse CLI args — in the
+    /// packaged wrapper that would target a read-only install dir and silently fail.
     pub fn save(&self) {
-        // Parse the command-line arguments to find the config path.
-        let cli = CliArgs::parse();
-
-        // Determine the configuration path, defaulting to "config.json".
-        let config_path = cli.config.unwrap_or_else(|| "config.json".to_string());
-
-        // Serialize the configuration to a pretty JSON string.
+        let path = self
+            .config_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("config.json"));
         if let Ok(content) = serde_json::to_string_pretty(self) {
-            // Write the JSON string to the file, ignoring any errors.
-            let _ = fs::write(config_path, content);
+            let _ = fs::write(path, content);
         }
     }
 }
