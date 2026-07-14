@@ -91,11 +91,16 @@ fn main() {
     let config = AppConfig::load_from(&paths.config_path);
     let db_url = paths.database_url();
 
-    // 7. Channels + backend on a bg thread bound to an EPHEMERAL port.
+    // 7. Channels + backend on a bg thread bound to an EPHEMERAL port. `done_tx` is moved
+    //    into the thread and dropped when it finishes; the main thread waits on `done_rx`
+    //    with a timeout so it (the owner of `log_guard`) always flushes logs before exit.
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<SocketAddr>();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
 
-    let server_thread = std::thread::spawn(move || {
+    let _server_thread = std::thread::spawn(move || {
+        // Dropped when this thread (and its run_server) finishes → disconnects `done_rx`.
+        let _done_tx = done_tx;
         let rt = match tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -134,24 +139,22 @@ fn main() {
     let api_base = format!("http://{addr}/api/documents");
     let gui_result = frontend::run_gui(api_base, config);
 
-    // 10. Window closed → graceful shutdown → bounded exit. The watchdog guards ONLY the
-    //     clean path (a hung connection-drain must never zombie us). It is NOT spawned on
-    //     the error path — otherwise its 3s exit(0) would race the modal error dialog,
-    //     killing it with a SUCCESS code and masking the failure.
+    // 10. Window closed → graceful shutdown → bounded, log-flushing exit. We wait up to 3s
+    //     for the backend thread to finish its graceful drain (signaled by `done_tx` being
+    //     dropped when that thread exits). Whether it drains in time (Disconnected) or hangs
+    //     past the deadline (Timeout), the MAIN thread — which owns `log_guard` — is always
+    //     the one that runs `drop(log_guard)` before exiting, so buffered logs are never lost
+    //     (no detached watchdog thread that could exit while the guard is still held).
     let _ = shutdown_tx.send(());
     match gui_result {
         Ok(()) => {
-            std::thread::spawn(|| {
-                std::thread::sleep(Duration::from_secs(3));
-                std::process::exit(0);
-            });
-            let _ = server_thread.join();
+            let _ = done_rx.recv_timeout(Duration::from_secs(3));
             drop(log_guard); // flush buffered logs before exiting (process::exit skips Drop)
             std::process::exit(0);
         }
         Err(e) => {
-            // No watchdog here: let the user acknowledge the dialog. fatal() exits the
-            // process (which reaps the still-running server thread); flush logs first.
+            // fatal() exits the process (which reaps the still-running server thread); flush
+            // logs first so the "see logs" prompt isn't pointing at an empty file.
             drop(log_guard);
             fatal("rsahp", &format!("GUI error: {e}"));
         }
