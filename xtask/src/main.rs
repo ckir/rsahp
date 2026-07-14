@@ -40,6 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
     let selections = &[
         "[1] INNER LOOP: Quick Test (Build & Launch)",
@@ -49,6 +50,7 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
         "[5] QUALITY GATE: Supply-chain & Hygiene (advisory)",
         "[6] SHIP & RELEASE: Fullscale Workflow (Commit & Push)",
         "[7] SHIP & RELEASE: Version Bump (lockstep)",
+        "[8] SHIP & RELEASE: Build Windows Installer (local)",
         "[0] Quit",
     ];
 
@@ -132,7 +134,8 @@ fn cockpit(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
                     println!("Error: {e}");
                 }
             }
-            7 => {
+            7 => build_windows_installer(sh)?,
+            8 => {
                 println!("Exiting Cockpit...");
                 break;
             }
@@ -333,4 +336,36 @@ fn version_bump(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Version bump complete! Do not forget to commit your changes.");
     Ok(())
+}
+
+/// Builds `rsahp-desktop` (release) and runs Inno Setup's `iscc`, injecting the version
+/// from `cargo pkgid` (robust — no JSON string-slicing). Windows-only.
+fn build_windows_installer(sh: &Shell) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(windows))]
+    {
+        let _ = sh;
+        println!("Windows installer build is only supported on Windows.");
+        Ok(())
+    }
+    #[cfg(windows)]
+    {
+        cmd!(sh, "cargo build --release -p rsahp-desktop").run()?;
+
+        // `cargo pkgid -p rsahp-desktop` → e.g. "path+file:///…#rsahp-desktop@0.1.0"
+        // (or "…#0.1.0"). Take the version after the last '@', else after the last '#'.
+        let pkgid = cmd!(sh, "cargo pkgid -p rsahp-desktop").read()?;
+        let pkgid = pkgid.trim();
+        let version = pkgid
+            .rsplit_once('@')
+            .map(|(_, v)| v)
+            .or_else(|| pkgid.rsplit_once('#').map(|(_, v)| v))
+            .ok_or("could not parse version from cargo pkgid")?
+            .to_string();
+        println!("Building installer for rsahp-desktop v{version}");
+
+        let def = format!("/DMyAppVersion={version}");
+        cmd!(sh, "iscc {def} packaging/windows/rsahp.iss").run()?;
+        println!("Installer written to dist/rsahp-setup-{version}.exe");
+        Ok(())
+    }
 }

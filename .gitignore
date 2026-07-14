@@ -11,3 +11,6 @@
 lcov.info
 *.profraw
 /target/llvm-cov-target/
+
+# Local installer build output
+dist/
