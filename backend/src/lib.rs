@@ -11,6 +11,8 @@ pub mod config;
 pub mod entity;
 
 use sea_orm::DbErr;
+use std::net::SocketAddr;
+use tokio::sync::oneshot;
 
 /// Sets up the database schema by applying versioned migrations, then (in debug
 /// builds only) seeds development login data.
@@ -144,6 +146,46 @@ pub fn create_router(db: sea_orm::DatabaseConnection) -> axum::Router {
                 next.run(req).await
             },
         ))
+}
+
+/// Connects the DB, applies migrations, and serves the axum app on `bind_addr`.
+///
+/// Sends the **actually-bound** [`SocketAddr`] over `ready_tx` (pass `127.0.0.1:0` for
+/// an ephemeral port and learn the real one — no blind retry). Graceful shutdown is
+/// driven by `shutdown_rx`. On any startup failure (connect / migrate / bind) this
+/// returns `Err` and drops `ready_tx`, so a caller blocked on the ready channel observes
+/// the failure instead of hanging.
+pub async fn run_server(
+    db_url: String,
+    bind_addr: SocketAddr,
+    ready_tx: oneshot::Sender<SocketAddr>,
+    shutdown_rx: oneshot::Receiver<()>,
+) -> Result<(), DbErr> {
+    let db = sea_orm::Database::connect(&db_url).await?;
+    tracing::info!("Connected to database: {}", db_url);
+    setup_schema(&db).await?;
+
+    let app = create_router(db);
+
+    let listener = tokio::net::TcpListener::bind(bind_addr)
+        .await
+        .map_err(|e| DbErr::Custom(format!("failed to bind {bind_addr}: {e}")))?;
+    let local_addr = listener
+        .local_addr()
+        .map_err(|e| DbErr::Custom(format!("failed to read local addr: {e}")))?;
+    tracing::info!("Listening on {}", local_addr);
+
+    let _ = ready_tx.send(local_addr);
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.await;
+            tracing::info!("Shutdown signal received, starting graceful shutdown...");
+        })
+        .await
+        .map_err(|e| DbErr::Custom(format!("server error: {e}")))?;
+
+    Ok(())
 }
 
 /// The canonical list of application tables, in creation order. This is the
