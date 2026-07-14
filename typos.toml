@@ -12,6 +12,8 @@ extend-exclude = [
     # Captured transcript/log dump (2.1M of quoted user requests, task logs, and
     # path hashes); its "typos" are captured content, not authored source.
     "frontend/src/ui/explorer_old.txt",
+    # PolyForm license is verbatim third-party legal text — not authored source to spellcheck.
+    "LICENSE",
 ]
 
 [default.extend-words]
