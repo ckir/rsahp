@@ -1,0 +1,20 @@
+[package]
+name = "rsahp-desktop"
+version = "0.1.0"
+publish = false
+edition = "2024"
+
+[[bin]]
+name = "rsahp-desktop"
+path = "src/main.rs"
+
+[dependencies]
+backend = { version = "0.1.0", path = "../backend" }
+frontend = { version = "0.1.0", path = "../frontend" }
+common = { version = "0.1.0", path = "../common" }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "sync"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+fd-lock = "4"
+rfd = "0.17.2"

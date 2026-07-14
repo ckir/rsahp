@@ -4,7 +4,8 @@ members = [
     "backend",
     "common",
     "xtask",
-    "migration"
+    "migration",
+    "rsahp-desktop"
 ]
 resolver = "2"
 
