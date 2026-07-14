@@ -19,10 +19,20 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(UserGroup::Table)
-                    .col(ColumnDef::new(UserGroup::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(UserGroup::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(UserGroup::Name).string().not_null())
                     .col(ColumnDef::new(UserGroup::ParentId).integer().null())
-                    .foreign_key(ForeignKey::create().from(UserGroup::Table, UserGroup::ParentId).to(UserGroup::Table, UserGroup::Id))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(UserGroup::Table, UserGroup::ParentId)
+                            .to(UserGroup::Table, UserGroup::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -32,7 +42,13 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(User::Table)
-                    .col(ColumnDef::new(User::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(User::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(User::Username).string().not_null())
                     .col(ColumnDef::new(User::PasswordHash).string().not_null())
                     .col(ColumnDef::new(User::IsAdmin).boolean().not_null())
@@ -46,12 +62,26 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Folder::Table)
-                    .col(ColumnDef::new(Folder::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(Folder::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Folder::Name).string().not_null())
                     .col(ColumnDef::new(Folder::OwnerId).integer().not_null())
                     .col(ColumnDef::new(Folder::ParentFolderId).integer().null())
-                    .foreign_key(ForeignKey::create().from(Folder::Table, Folder::OwnerId).to(User::Table, User::Id))
-                    .foreign_key(ForeignKey::create().from(Folder::Table, Folder::ParentFolderId).to(Folder::Table, Folder::Id))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Folder::Table, Folder::OwnerId)
+                            .to(User::Table, User::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Folder::Table, Folder::ParentFolderId)
+                            .to(Folder::Table, Folder::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -61,15 +91,37 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Document::Table)
-                    .col(ColumnDef::new(Document::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(Document::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Document::Name).string().not_null())
                     .col(ColumnDef::new(Document::OwnerId).integer().not_null())
                     .col(ColumnDef::new(Document::Version).integer().not_null())
-                    .col(ColumnDef::new(Document::AggregationMethod).string().not_null())
+                    .col(
+                        ColumnDef::new(Document::AggregationMethod)
+                            .string()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(Document::FolderId).integer().null())
-                    .col(ColumnDef::new(Document::CreatedAt).timestamp_with_time_zone().not_null())
-                    .foreign_key(ForeignKey::create().from(Document::Table, Document::OwnerId).to(User::Table, User::Id))
-                    .foreign_key(ForeignKey::create().from(Document::Table, Document::FolderId).to(Folder::Table, Folder::Id))
+                    .col(
+                        ColumnDef::new(Document::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Document::Table, Document::OwnerId)
+                            .to(User::Table, User::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Document::Table, Document::FolderId)
+                            .to(Folder::Table, Folder::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -79,14 +131,28 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Node::Table)
-                    .col(ColumnDef::new(Node::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(Node::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Node::DocumentId).integer().not_null())
                     .col(ColumnDef::new(Node::ParentNodeId).integer().null())
                     .col(ColumnDef::new(Node::Name).string().not_null())
                     .col(ColumnDef::new(Node::NodeType).string().not_null())
                     .col(ColumnDef::new(Node::Cost).double().null())
-                    .foreign_key(ForeignKey::create().from(Node::Table, Node::DocumentId).to(Document::Table, Document::Id))
-                    .foreign_key(ForeignKey::create().from(Node::Table, Node::ParentNodeId).to(Node::Table, Node::Id))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Node::Table, Node::DocumentId)
+                            .to(Document::Table, Document::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Node::Table, Node::ParentNodeId)
+                            .to(Node::Table, Node::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -96,16 +162,42 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Comparison::Table)
-                    .col(ColumnDef::new(Comparison::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(Comparison::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Comparison::DocumentId).integer().not_null())
-                    .col(ColumnDef::new(Comparison::RespondentId).integer().not_null())
-                    .col(ColumnDef::new(Comparison::ParentNodeId).integer().not_null())
+                    .col(
+                        ColumnDef::new(Comparison::RespondentId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Comparison::ParentNodeId)
+                            .integer()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(Comparison::NodeAId).integer().not_null())
                     .col(ColumnDef::new(Comparison::NodeBId).integer().not_null())
                     .col(ColumnDef::new(Comparison::SaatyValue).double().not_null())
-                    .foreign_key(ForeignKey::create().from(Comparison::Table, Comparison::DocumentId).to(Document::Table, Document::Id))
-                    .foreign_key(ForeignKey::create().from(Comparison::Table, Comparison::ParentNodeId).to(Node::Table, Node::Id))
-                    .foreign_key(ForeignKey::create().from(Comparison::Table, Comparison::RespondentId).to(User::Table, User::Id))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Comparison::Table, Comparison::DocumentId)
+                            .to(Document::Table, Document::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Comparison::Table, Comparison::ParentNodeId)
+                            .to(Node::Table, Node::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Comparison::Table, Comparison::RespondentId)
+                            .to(User::Table, User::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -115,11 +207,33 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(UserGroupMembership::Table)
-                    .col(ColumnDef::new(UserGroupMembership::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(UserGroupMembership::UserId).integer().not_null())
-                    .col(ColumnDef::new(UserGroupMembership::GroupId).integer().not_null())
-                    .foreign_key(ForeignKey::create().from(UserGroupMembership::Table, UserGroupMembership::UserId).to(User::Table, User::Id))
-                    .foreign_key(ForeignKey::create().from(UserGroupMembership::Table, UserGroupMembership::GroupId).to(UserGroup::Table, UserGroup::Id))
+                    .col(
+                        ColumnDef::new(UserGroupMembership::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(UserGroupMembership::UserId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserGroupMembership::GroupId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(UserGroupMembership::Table, UserGroupMembership::UserId)
+                            .to(User::Table, User::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(UserGroupMembership::Table, UserGroupMembership::GroupId)
+                            .to(UserGroup::Table, UserGroup::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -129,11 +243,39 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(DocumentUserAssignment::Table)
-                    .col(ColumnDef::new(DocumentUserAssignment::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(DocumentUserAssignment::DocumentId).integer().not_null())
-                    .col(ColumnDef::new(DocumentUserAssignment::UserId).integer().not_null())
-                    .foreign_key(ForeignKey::create().from(DocumentUserAssignment::Table, DocumentUserAssignment::DocumentId).to(Document::Table, Document::Id))
-                    .foreign_key(ForeignKey::create().from(DocumentUserAssignment::Table, DocumentUserAssignment::UserId).to(User::Table, User::Id))
+                    .col(
+                        ColumnDef::new(DocumentUserAssignment::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(DocumentUserAssignment::DocumentId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DocumentUserAssignment::UserId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                DocumentUserAssignment::Table,
+                                DocumentUserAssignment::DocumentId,
+                            )
+                            .to(Document::Table, Document::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                DocumentUserAssignment::Table,
+                                DocumentUserAssignment::UserId,
+                            )
+                            .to(User::Table, User::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -143,11 +285,39 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(DocumentGroupAssignment::Table)
-                    .col(ColumnDef::new(DocumentGroupAssignment::Id).integer().not_null().auto_increment().primary_key())
-                    .col(ColumnDef::new(DocumentGroupAssignment::DocumentId).integer().not_null())
-                    .col(ColumnDef::new(DocumentGroupAssignment::GroupId).integer().not_null())
-                    .foreign_key(ForeignKey::create().from(DocumentGroupAssignment::Table, DocumentGroupAssignment::DocumentId).to(Document::Table, Document::Id))
-                    .foreign_key(ForeignKey::create().from(DocumentGroupAssignment::Table, DocumentGroupAssignment::GroupId).to(UserGroup::Table, UserGroup::Id))
+                    .col(
+                        ColumnDef::new(DocumentGroupAssignment::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(DocumentGroupAssignment::DocumentId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DocumentGroupAssignment::GroupId)
+                            .integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                DocumentGroupAssignment::Table,
+                                DocumentGroupAssignment::DocumentId,
+                            )
+                            .to(Document::Table, Document::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                DocumentGroupAssignment::Table,
+                                DocumentGroupAssignment::GroupId,
+                            )
+                            .to(UserGroup::Table, UserGroup::Id),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -168,7 +338,9 @@ impl MigrationTrait for Migration {
             User::Table.into_iden(),
             UserGroup::Table.into_iden(),
         ] {
-            manager.drop_table(Table::drop().table(table).to_owned()).await?;
+            manager
+                .drop_table(Table::drop().table(table).to_owned())
+                .await?;
         }
         Ok(())
     }
